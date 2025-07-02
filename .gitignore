@@ -1,0 +1,17 @@
+*
+!*/
+!*.*
+/.venv_pyspedas
+*.cdf
+*.zip
+*.html
+*.nc
+*.png
+*.txt
+*.bsp
+*.tls
+*.tpc
+*.tf
+*.bc
+*.ti
+*.tsc
