@@ -19,7 +19,7 @@ mpl.rcParams['font.serif']         = ['Computer Modern Roman']
 mpl.rcParams['mathtext.fontset']   = 'cm'
 plt.rcParams['font.size']          = 28
 
-OUT_DIR = '/mnt/j/KAW_observation/LEP-e_pitch_angle_each_time'
+OUT_DIR = '/mnt/j/KAW_observation/LEP-e_pitch_angle_each_time/20220901/22-24/'
 os.makedirs(OUT_DIR, exist_ok=True)
 
 
@@ -32,7 +32,7 @@ mpl.rcdefaults(); mpl.rcParams.update({
 })
 
 # ---------- 1. データ読込み ----------
-tr = ['20220901/03:40:00', '20220901/04:20:00']
+tr = ['20220901/22:25:00', '20220901/23:35:00']
 pt.del_data('*')
 psp.erg.lepe(tr, datatype='3dflux', level='l2')
 psp.erg.mgf (tr, datatype='64hz',  level='l2', coord='dsi')
@@ -42,8 +42,8 @@ lep_var  = 'erg_lepe_l2_3dflux_FEDU'
 flux_da  = pt.data_quants[lep_var]
 energy_eV = flux_da.v1[0, :].values      # 18 bin（eV 単位）
 
-T0 = np.datetime64('2022-09-01T03:45:00')
-T1 = np.datetime64('2022-09-01T04:15:00')
+T0 = np.datetime64('2022-09-01T22:30:00')
+T1 = np.datetime64('2022-09-01T23:30:00')
 times = [t for t in flux_da.time.values if T0 <= t <= T1]
 
 # ---------- 2. 1 スナップショット処理関数 ----------
