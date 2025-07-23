@@ -70,7 +70,7 @@ def one_snapshot(target):
             lep_var, outputs='pa', trange=trange,
             energy=[np.floor(E), np.ceil(E)],
             mag_name='erg_mgf_l2_mag_64hz_dsi',
-            pos_name='erg_orb_l2_pos_dsi', suffix=f'_PA_{target}')
+            pos_name='erg_orb_l2_pos_gse', suffix=f'_PA_{target}')
 
         pa_da = pt.data_quants[f'{lep_var}_pa_PA_{target}']    # dims=(1, pa)
         pitch = pa_da.spec_bins.values[tid, :]             # 1-D
