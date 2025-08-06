@@ -29,9 +29,9 @@ def load_and_prepare_data(cutoff_freq=1/6):
         # --- 補助パラメータを基準時間軸に補間 ---
         data_dict['v_A_'] = pt.data_quants['Alfven_speed'].interp(time=time_axis, method='linear') * 1E3
         data_dict['ion_cyclo_freq'] = pt.data_quants['ion_cyclo_freq'].interp(time=time_axis, method='linear')
-        data_dict['V_ion_fac_perp'] = pt.data_quants['erg_lepi_l2_3dflux_FPDU_velocity_fac_perp'].interp(time=time_axis, method='linear')
-        data_dict['V_th_proton'] = pt.data_quants['V_th_proton'].interp(time=time_axis, method='linear')
-        data_dict['C_s_proton'] = pt.data_quants['C_s_proton'].interp(time=time_axis, method='linear')
+        data_dict['V_ion_fac_perp'] = pt.data_quants['v_sys_fac_perp_rolling'].interp(time=time_axis, method='linear') * 1E3
+        data_dict['V_th_proton'] = pt.data_quants['V_th_proton'].interp(time=time_axis, method='linear') * 1E3
+        data_dict['C_s_proton'] = pt.data_quants['C_s_proton'].interp(time=time_axis, method='linear') * 1E3
         data_dict['tau'] = pt.data_quants['tau'].interp(time=time_axis, method='linear')
         data_dict['beta_i'] = pt.data_quants['beta_i'].interp(time=time_axis, method='linear')
         data_dict['r_param'] = data_dict['C_s_proton'] / data_dict['V_th_proton']
@@ -183,7 +183,7 @@ def plot_k_spectrum(t_start, data_dict, interval_sec=1, n_samples_mc=500,
     beta_s = draw_lognormal(gm_beta, lo_beta, hi_beta, n_samples_mc, rng)
     r_s = draw_lognormal(gm_r, lo_r, hi_r, n_samples_mc, rng)
     
-    k_th = np.logspace(-1, 2, 500)
+    k_th = np.logspace(np.log10(k_range[0]), np.log10(k_range[1]), 1000)
     VB_samp = (1 + k_th[None, :]**2) / np.sqrt(1 + k_th[None, :]**2 * (1 + r_s[:, None]**2))
     
     k_th_high = k_th[k_th > np.sqrt(10)]
@@ -230,7 +230,7 @@ def plot_k_spectrum(t_start, data_dict, interval_sec=1, n_samples_mc=500,
     ax2.set_ylabel(r'$\sqrt{E_\perp^2/B_\perp^2} / v_A$')
     ax2.grid(True, which='both', ls='--', alpha=0.5)
     ax2.legend()
-    ax2.set_xlim(kmin, kmax); ax2.set_ylim(1e-1, 1e2)
+    ax2.set_xlim(kmin, kmax); ax2.set_ylim(1e-1, 1e3)
     
     plt.tight_layout()
     return fig
@@ -242,6 +242,8 @@ def plot_freq_spectrum(t_start, data_dict, interval_sec=1, n_samples_mc=500):
     """
     t_end = t_start + np.timedelta64(interval_sec, 's')
     freq = data_dict['freq']
+
+    freq_th = np.logspace(-1, 2, 1000)
 
     try:
         Bx_psd_sec = data_dict['Bx_psd'].sel(time=slice(t_start, t_end))
@@ -310,21 +312,19 @@ def plot_freq_spectrum(t_start, data_dict, interval_sec=1, n_samples_mc=500):
 
     # --- モンテカルロ法で理論曲線のエラーバンドを計算 ---
     rng = np.random.default_rng()
-    
-    # 各パラメータの分布からランダムサンプリング
     v_A_s = rng.normal(mean_v_A, std_v_A, size=n_samples_mc)
     ion_cyclo_s = rng.normal(mean_ion_cyclo, std_ion_cyclo, size=n_samples_mc)
     V_ion_s = rng.normal(mean_V_ion, std_V_ion, size=n_samples_mc)
     V_th_s = rng.normal(mean_V_th, std_V_th, size=n_samples_mc)
     C_s_s = rng.normal(mean_C_s, std_C_s, size=n_samples_mc)
     
-    # サンプルごとに理論曲線を計算 (結果は (n_samples_mc, n_freq) の2次元配列)
-    VB_samples = (1 + (freq[None, :] / ion_cyclo_s[:, None] * V_th_s[:, None] / V_ion_s[:, None])**2) / \
-                 np.sqrt(1 + (freq[None, :] / ion_cyclo_s[:, None])**2 * ((C_s_s[:, None] / V_ion_s[:, None])**2 + (V_th_s[:, None] / V_ion_s[:, None])**2))
+    # 理論曲線の計算に freq_th を使う
+    VB_samples = (1 + (freq_th[None, :] / ion_cyclo_s[:, None] * V_th_s[:, None] / V_ion_s[:, None])**2) / \
+                 np.sqrt(1 + (freq_th[None, :] / ion_cyclo_s[:, None])**2 * ((C_s_s[:, None] / V_ion_s[:, None])**2 + (V_th_s[:, None] / V_ion_s[:, None])**2))
 
     tau_s = (V_th_s / C_s_s)**2 / 2
     beta_i_s = (V_th_s / v_A_s)**2
-    kperp_rhoi_s = (freq[None, :] / ion_cyclo_s[:, None]) * (V_th_s[:, None] / V_ion_s[:, None])
+    kperp_rhoi_s = (freq_th[None, :] / ion_cyclo_s[:, None]) * (V_th_s[:, None] / V_ion_s[:, None]) # freq_th を使用
     high_val_s = kperp_rhoi_s * tau_s[:, None] / np.sqrt((beta_i_s[:, None] * (1 + tau_s[:, None]) + 2 * tau_s[:, None]) * (1 + tau_s[:, None]))
     ERMHD_samples = np.select([kperp_rhoi_s < np.sqrt(0.1), kperp_rhoi_s > np.sqrt(10.0)], [np.ones_like(kperp_rhoi_s), high_val_s], default=np.nan)
 
@@ -342,24 +342,23 @@ def plot_freq_spectrum(t_start, data_dict, interval_sec=1, n_samples_mc=500):
     ax1.set_ylabel(r'PSD [$(\mathrm{mV/m})^{2}$/Hz]')
     ax1.set_title(f'Avg PSD @ {str(t_start)}')
     ax1.grid(True, which='both', ls='--', lw=0.5)
-    ax1.set_ylim(1e-4, 5e3)
-    ax1.set_xlim(1/8, 4e1)
+    ax1.set_ylim(1e-6, 1e3)
+    ax1.set_xlim(1e-1, 1e2)
     ax1.legend(fontsize=10)
 
     ax2.errorbar(freq, ratio_dimless, yerr=ratio_err, color='k', fmt='o', ms=3, ls='', label=r'$\sqrt{E_\perp^{2}/B_\perp^{2}}/v_{\mathrm{A}}$', zorder=5)
-    ax2.set_yscale('log')
-    ax2.set_xscale('log')
-    ax2.plot(freq, VB_med, color='green', label=r'dispersion relation (V-M)')
-    ax2.fill_between(freq, VB_low, VB_high, color='green', alpha=0.2)
-    ax2.plot(freq, ERMHD_med, color='blue', label=r'dispersion relation (ERMHD)')
-    ax2.fill_between(freq, ERMHD_low, ERMHD_high, color='blue', alpha=0.2)
+    ax2.set_yscale('log'); ax2.set_xscale('log')
+    ax2.plot(freq_th, VB_med, color='green', label=r'dispersion relation (V-M)')
+    ax2.fill_between(freq_th, VB_low, VB_high, color='green', alpha=0.2)
+    ax2.plot(freq_th, ERMHD_med, color='blue', label=r'dispersion relation (ERMHD)')
+    ax2.fill_between(freq_th, ERMHD_low, ERMHD_high, color='blue', alpha=0.2)
     
     ax2.legend(fontsize=10)
     ax2.set_xlabel('Frequency [Hz]')
     ax2.set_ylabel(r'$\sqrt{E_\perp^{2}/B_\perp^{2}}/v_{\mathrm{A}}$')
     ax2.grid(True, which='both', ls='--', lw=0.5)
-    ax2.set_ylim(5e-1, 1e2)
-    ax2.set_xlim(1/8, 4e1)
+    ax2.set_ylim(1e-1, 1e3)
+    ax2.set_xlim(1e-1, 1e2)
 
     plt.tight_layout()
     
