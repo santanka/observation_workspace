@@ -117,19 +117,19 @@ def load_and_prepare_data(cutoff_freq=1/6):
     """
     data_dict = {}
     seg_ids = sorted({v.split('_seg')[-1]                      # {'0','1',...}
-                  for v in pt.tnames('E128_gsm_i*')})
+                  for v in pt.tnames('tau*') if 'seg' in v})
     print(seg_ids)
     try:
         # --- 生の時系列データを取得 ---
-        data_dict['Bx_psd'] = concat_tplot_segments('Bx_fac_hp_cwt', seg_ids)
+        data_dict['Bx_psd'] = concat_tplot_segments('Bx_fac_bs_cwt_clean', seg_ids)
     except Exception as e:
         print(f"Bで失敗: {e}")
         return None
     
     try:
-        data_dict['By_psd'] = concat_tplot_segments('By_fac_hp_cwt', seg_ids)
-        data_dict['Ex_psd'] = concat_tplot_segments('Ex_fac_hp_cwt', seg_ids)
-        data_dict['Ey_psd'] = concat_tplot_segments('Ey_fac_hp_cwt', seg_ids)
+        data_dict['By_psd'] = concat_tplot_segments('By_fac_bs_cwt_clean', seg_ids)
+        data_dict['Ex_psd'] = concat_tplot_segments('Ex_fac_bs_cwt_clean', seg_ids)
+        data_dict['Ey_psd'] = concat_tplot_segments('Ey_fac_bs_cwt_clean', seg_ids)
 
     except Exception as e:
         print(f"EBで失敗: {e}")
@@ -151,12 +151,24 @@ def load_and_prepare_data(cutoff_freq=1/6):
         
         # --- 周波数軸の準備とカットオフ ---
         freq = data_dict['Bx_psd'].v.values
-        mask = freq >= cutoff_freq
-        data_dict['freq'] = freq[mask]
+        if cutoff_freq is not None:
+            if len(cutoff_freq) == 2:
+                mask = (freq <= cutoff_freq[0]) | (freq >= cutoff_freq[1])
+            elif len(cutoff_freq) == 3:
+                mask = ((freq >= cutoff_freq[0]) & (freq <= cutoff_freq[1])) | (freq >= cutoff_freq[2])
+            else:
+                mask = freq >= cutoff_freq
+            data_dict['freq'] = freq[mask]
+        else:
+            data_dict['freq'] = freq
         
         # 各PSDデータにマスクを適用
         for key in ['Bx_psd', 'By_psd', 'Ex_psd', 'Ey_psd']:
-            data_dict[key] = data_dict[key].isel(v_dim=mask)
+            if cutoff_freq is not None:
+                data_dict[key] = data_dict[key].isel(v_dim=mask)
+            else:
+                data_dict[key] = data_dict[key]
+
 
         # --- k_perp*rho_i を全時刻分あらかじめ計算 ---
         f     = data_dict['freq']
@@ -355,7 +367,7 @@ def plot_freq_spectrum(t_start, data_dict, interval_sec=1, n_samples_mc=500):
     t_end = t_start + np.timedelta64(interval_sec, 's')
     freq = data_dict['freq']
 
-    freq_th = np.logspace(-1, 2, 1000)
+    freq_th = np.logspace(-2, 2, 1000)
 
     try:
         Bx_psd_sec = data_dict['Bx_psd'].sel(time=slice(t_start, t_end))
@@ -449,28 +461,34 @@ def plot_freq_spectrum(t_start, data_dict, interval_sec=1, n_samples_mc=500):
     
     ax1.errorbar(freq, VA2_Bperp2_slice, yerr=(mean_v_A**2)*B_perp2_err*1e6, fmt='o', ms=3, color='b', label=r'$v_\mathrm{A}^{2}B_\perp^{2}$ PSD')
     ax1.errorbar(freq, E_perp2_slice, yerr=E_perp2_err, fmt='o', ms=3, color='orange', label=r'$E_\perp^{2}$ PSD')
+    ax1.axvline(x=1/3, c='purple', ls='--', lw=1, label=r'1 $\times$ spin tone')
+    ax1.axvline(x=3/3, c='green', ls='--', lw=1, label=r'3 $\times$ spin tone')
+    ax1.axvspan(1/3, 3/3, color='gray', alpha=0.3)
     ax1.set_yscale('log')
     ax1.set_xscale('log')
     ax1.set_ylabel(r'PSD [$(\mathrm{mV/m})^{2}$/Hz]')
     ax1.set_title(f'Avg PSD @ {str(t_start)}')
     ax1.grid(True, which='both', ls='--', lw=0.5)
     ax1.set_ylim(1e-6, 1e3)
-    ax1.set_xlim(1e-1, 1e2)
+    ax1.set_xlim(1e-2, 1e2)
     ax1.legend(fontsize=10)
 
     ax2.errorbar(freq, ratio_dimless, yerr=ratio_err, color='k', fmt='o', ms=3, ls='', label=r'$\sqrt{E_\perp^{2}/B_\perp^{2}}/v_{\mathrm{A}}$', zorder=5)
     ax2.set_yscale('log'); ax2.set_xscale('log')
     ax2.plot(freq_th, VB_med, color='green', label=r'dispersion relation (V-M)')
+
     ax2.fill_between(freq_th, VB_low, VB_high, color='green', alpha=0.2)
     ax2.plot(freq_th, ERMHD_med, color='blue', label=r'dispersion relation (ERMHD)')
     ax2.fill_between(freq_th, ERMHD_low, ERMHD_high, color='blue', alpha=0.2)
-    
-    ax2.legend(fontsize=10)
+    ax2.axvline(x=1/3, c='purple', ls='--', lw=1, label=r'1 $\times$ spin tone')
+    ax2.axvline(x=3/3, c='green', ls='--', lw=1, label=r'3 $\times$ spin tone')
+    ax2.axvspan(1/3, 3/3, color='gray', alpha=0.3)
     ax2.set_xlabel('Frequency [Hz]')
     ax2.set_ylabel(r'$\sqrt{E_\perp^{2}/B_\perp^{2}}/v_{\mathrm{A}}$')
     ax2.grid(True, which='both', ls='--', lw=0.5)
     ax2.set_ylim(1e-1, 1e3)
-    ax2.set_xlim(1e-1, 1e2)
+    ax2.set_xlim(1e-2, 1e2)
+    ax2.legend(fontsize=10)
 
     plt.tight_layout()
     
