@@ -44,7 +44,7 @@ def tdwavelet(
     dt: float | None = None,
     scales: Iterable[float] | None = None,
     s0: float = 1.0,
-    dj: float = 1/12,
+    dj: float = 1/16,
     J: int | None = None,
     wavelet: str = "cmor1.5-1.0",
     gap_thresh: float | None = None,
