@@ -111,8 +111,7 @@ def fit_powerlaw_loglog(x, y, *, yerr=None, mask=None):
     if use.sum() < 3: return None
     Xl, Yl = np.log10(x[use]), np.log10(y[use])
     try:
-        slope, intercept, *_ = linregress(Xl, Yl)
-        stderr = np.nan # linregressのstderrは使わない
+        slope, intercept, r_value, p_value, stderr = linregress(Xl, Yl)
     except (LinAlgError, ValueError): return None
     return {"kappa": -slope, "stderr": stderr, "model": lambda xx: 10**(slope*np.log10(xx)+intercept)}
 
@@ -213,12 +212,14 @@ def plot_k_spectrum(t_start, data_dict, interval_sec=1, n_samples_mc=500,
     if res_B:
         xx = np.logspace(np.log10(fit_range[0]), np.log10(fit_range[1]), 100)
         ax1.plot(xx, res_B["model"](xx), '--', color='blue')
-        ax1.text(0.05, 0.25, fr'$\kappa_B={res_B["kappa"]:.2f}$', transform=ax1.transAxes, color='blue',
+        ax1.text(0.05, 0.25, fr'$\kappa_B={res_B["kappa"]:.2f} \pm {res_B["stderr"]:.2f}$', 
+                 transform=ax1.transAxes, color='blue',
                  bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=2))
     if res_E:
         xx = np.logspace(np.log10(fit_range[0]), np.log10(fit_range[1]), 100)
         ax1.plot(xx, res_E["model"](xx), '--', color='orange')
-        ax1.text(0.05, 0.15, fr'$\kappa_E={res_E["kappa"]:.2f}$', transform=ax1.transAxes, color='orange',
+        ax1.text(0.05, 0.15, fr'$\kappa_E={res_E["kappa"]:.2f} \pm {res_E["stderr"]:.2f}$', 
+                 transform=ax1.transAxes, color='orange',
                  bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=2))
     ax1.set_ylabel(r'PSD [(mV/m)$^2$/Hz]')
     ax1.grid(True, which='both', ls='--', alpha=0.5)
@@ -244,7 +245,18 @@ def plot_k_spectrum(t_start, data_dict, interval_sec=1, n_samples_mc=500,
     ax2.set_xlim(kmin, kmax); ax2.set_ylim(1e-1, 1e3)
     
     plt.tight_layout()
-    return fig
+
+    # フィッティング結果を辞書としてまとめる
+    fit_results = {
+        'time': t_start,
+        'kappa_B': res_B['kappa'] if res_B else np.nan,
+        'kappa_B_err': res_B['stderr'] if res_B else np.nan,
+        'kappa_E': res_E['kappa'] if res_E else np.nan,
+        'kappa_E_err': res_E['stderr'] if res_E else np.nan
+    }
+    
+    # figureオブジェクトとフィッティング結果の両方を返す
+    return fig, fit_results
 
 
 def plot_freq_spectrum(t_start, data_dict, interval_sec=1, n_samples_mc=500):
