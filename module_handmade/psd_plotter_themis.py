@@ -156,6 +156,8 @@ def load_and_prepare_data(cutoff_freq=1/6):
                 mask = (freq <= cutoff_freq[0]) | (freq >= cutoff_freq[1])
             elif len(cutoff_freq) == 3:
                 mask = ((freq >= cutoff_freq[0]) & (freq <= cutoff_freq[1])) | (freq >= cutoff_freq[2])
+            elif len(cutoff_freq) == 4:
+                mask = ((freq >= cutoff_freq[0]) & (freq <= cutoff_freq[1])) | ((freq >= cutoff_freq[2]) & (freq <= cutoff_freq[3]))
             else:
                 mask = freq >= cutoff_freq
             data_dict['freq'] = freq[mask]
@@ -355,7 +357,7 @@ def plot_k_spectrum(t_start, data_dict, interval_sec=1, n_samples_mc=500,
     ax2.set_ylabel(r'$\sqrt{E_\perp^2/B_\perp^2} / v_A$')
     ax2.grid(True, which='both', ls='--', alpha=0.5)
     ax2.legend()
-    ax2.set_xlim(kmin, kmax); ax2.set_ylim(1e-1, 1e3)
+    ax2.set_xlim(kmin, kmax); ax2.set_ylim(1e-1, 1e2)
     
     plt.tight_layout()
 
@@ -498,7 +500,7 @@ def plot_freq_spectrum(t_start, data_dict, interval_sec=1, n_samples_mc=500):
     ax2.set_xlabel('Frequency [Hz]')
     ax2.set_ylabel(r'$\sqrt{E_\perp^{2}/B_\perp^{2}}/v_{\mathrm{A}}$')
     ax2.grid(True, which='both', ls='--', lw=0.5)
-    ax2.set_ylim(1e-1, 1e3)
+    ax2.set_ylim(1e-1, 1e2)
     ax2.set_xlim(1e-2, 1e2)
     ax2.legend(fontsize=10)
 
