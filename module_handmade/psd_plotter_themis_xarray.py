@@ -28,10 +28,10 @@ def build_data_dict_xr(dsets_8_clean, dsets_128, ds_velocity_ms, ds_parameter,
     dd = {}
     # PSD: 8Hz帯(<=f_split), 128Hz帯(>=f_split)
     for comp in ["x","y"]:
-        dd[f"E{comp}_8"]   = _concat_and_slice(dsets_8_clean,   f"E8_fac_{comp}_cwt_clean", fmin=None, fmax=f_split)
-        dd[f"E{comp}_128"] = _concat_and_slice(dsets_128,      f"E128_fac_{comp}_cwt",      fmin=f_split, fmax=None)
-        dd[f"B{comp}_8"]   = _concat_and_slice(dsets_8_clean,   f"B8_fac_{comp}_cwt_clean", fmin=None, fmax=f_split)
-        dd[f"B{comp}_128"] = _concat_and_slice(dsets_128,      f"B128_fac_{comp}_cwt",      fmin=f_split, fmax=None)
+        dd[f"E{comp}_spin"]     = _concat_and_slice(dsets_8_clean,  f"Espin_fac_{comp}_cwt",  fmin=None,      fmax=f_split)
+        dd[f"E{comp}_128"]      = _concat_and_slice(dsets_128,      f"E128_fac_{comp}_cwt",         fmin=f_split,   fmax=None)
+        dd[f"B{comp}_spin"]     = _concat_and_slice(dsets_8_clean,  f"Bspin_fac_{comp}_cwt",  fmin=None,      fmax=f_split)
+        dd[f"B{comp}_128"]      = _concat_and_slice(dsets_128,      f"B128_fac_{comp}_cwt",         fmin=f_split,   fmax=None)
 
     # 補助量: vel基準で時間整列
     vel_u = _make_unique_time(ds_velocity_ms)
@@ -75,7 +75,7 @@ def _apply_cutoff_mask(freq, arr, cutoff):
 
 def _pick_window_time(dd, t0, t1):
     """窓内にサンプルを持つ time をどれかの帯から拾う。無ければ None"""
-    for key in ("Bx_8","Bx_128","Ex_8","Ex_128","By_8","By_128","Ey_8","Ey_128"):
+    for key in ("Bx_spin","Bx_128","Ex_spin","Ex_128","By_spin","By_128","Ey_spin","Ey_128"):
         da = dd.get(key)
         if da is None:
             continue
@@ -139,7 +139,7 @@ def plot_freq_spectrum_dual(dd, t0, dt_sec=60):
     cf = dd.get('cutoff_freq')
 
     # 上段: PSD（電場=橙, 磁場=青。8/128で色は変えない）
-    for band in ('8', '128'):
+    for band in ('spin', '128'):
         st = band_stats(band)
         if st is None: continue
         f, Bp2, Bp2err, Ep2, Ep2err = st
@@ -149,7 +149,7 @@ def plot_freq_spectrum_dual(dd, t0, dt_sec=60):
         VA2err = _apply_cutoff_mask(f, VA2err, cf)
         Ep2    = _apply_cutoff_mask(f, Ep2,    cf)
         Ep2err = _apply_cutoff_mask(f, Ep2err, cf)
-        if band == '8':
+        if band == 'spin':
             ax1.errorbar(f, VA2Bp2, yerr=VA2err, fmt='o', ms=3, color='b',      label=r'$v_\mathrm{A}^{2}B_\perp^{2}$ PSD')
             ax1.errorbar(f, Ep2,    yerr=Ep2err, fmt='o', ms=3, color='orange', label=r'$E_\perp^{2}$ PSD')
         else:
@@ -157,7 +157,7 @@ def plot_freq_spectrum_dual(dd, t0, dt_sec=60):
             ax1.errorbar(f, Ep2,    yerr=Ep2err, fmt='o', ms=3, color='orange')
 
     # 下段: ratio（スピントーン帯は未描画）
-    for band in ('8', '128'):
+    for band in ('spin', '128'):
         st = band_stats(band)
         if st is None: continue
         f, Bp2, Bp2err, Ep2, Ep2err = st
@@ -168,7 +168,7 @@ def plot_freq_spectrum_dual(dd, t0, dt_sec=60):
             rerr  = ratio * np.sqrt(0.25*relE2 + 0.25*relB2)
         ratio  = _apply_cutoff_mask(f, ratio,  cf)
         rerr   = _apply_cutoff_mask(f, rerr,   cf)
-        if band == '8':
+        if band == 'spin':
             ax2.errorbar(f, ratio, yerr=rerr, fmt='o', ms=3, color='k', ls='', label=r'$\sqrt{E_\perp^{2}/B_\perp^{2}}/v_{\mathrm{A}}$')
         else:
             ax2.errorbar(f, ratio, yerr=rerr, fmt='o', ms=3, color='k', ls='')
@@ -325,7 +325,7 @@ def plot_k_spectrum_dual(dd, t_start, dt_sec=1,
 
         return (k_mat.ravel(), VA2Bp2.ravel(), Ep2.ravel(), Ratio.ravel())
 
-    collected = [tmp for band in ("8", "128") if (tmp := _flatten_band(band)) is not None]
+    collected = [tmp for band in ("spin", "128") if (tmp := _flatten_band(band)) is not None]
     if not collected:
         return None, None
 
