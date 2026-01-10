@@ -69,7 +69,7 @@ def cwt_1d(t, y, *, dt=None, scales=None, s0=1.0, dj=1/16, J=None,
            wavelet="cmor1.5-1.0", gap_thresh=None, method="fft"):
     t_grid, sig, large_mask, dt0, gap_thresh = _regularize_time(t, y, dt, gap_thresh)
     if t_grid.size == 0:
-        return t_grid, np.array([]), np.empty((0,0)), np.array([])
+        return t_grid, np.array([]), np.empty((0, 0), dtype=np.complex64), np.empty((0, 0), dtype=np.float32), np.array([])
 
     # スケール
     if scales is not None:
@@ -90,13 +90,14 @@ def cwt_1d(t, y, *, dt=None, scales=None, s0=1.0, dj=1/16, J=None,
     scale_coi = np.maximum(s0, (time_dist / dt0) / np.sqrt(2.0))
     freq_coi  = pywt.scale2frequency(wavelet, scale_coi) / dt0  # (T,) 全点有限
 
-    # 低周波側マスクは power のみ
-    power[freqs[:,None] < freq_coi] = np.nan
-    if large_mask.any():
-        power[:, large_mask] = np.nan
+    return (
+        t_grid,
+        freqs,
+        coef.T.astype(np.complex64, copy=False),   # (Time, Freq)
+        power.T.astype(np.float32, copy=False),  # (Time, Freq)
+        freq_coi.astype(np.float32, copy=False)  # (Time,)
+    )
 
-    assert not np.isnan(freq_coi).any(), "freq_coi has NaN inside cwt_1d"
-    return t_grid, freqs, power.T.astype(np.float32, copy=False), freq_coi.astype(np.float32, copy=False)
 
 # -----------------------------------------------------------------------------
 # Dataset-level API
@@ -114,6 +115,7 @@ def cwt_from_dataset(
     gap_thresh: float | None = None,
     method: str = "fft",
     suffix: str = "_cwt",
+    coef_suffix: str = "_coef",
     apply_coi_mask: bool = True,
     coi_mask_side: str = "lower",
 ) -> xr.Dataset:
@@ -153,23 +155,24 @@ def cwt_from_dataset(
 
     for name in variables:
         y = np.asarray(ds[name].values, dtype=float)
-        t_grid, freqs, power_tf, freq_coi = cwt_1d(
-            t_sec, y,
-            dt=dt, s0=s0, dj=dj, J=J, wavelet=wavelet, gap_thresh=gap_thresh, method=method
+        t_grid, freqs, coef_tf, power_tf, freq_coi = cwt_1d(
+            t_sec, y, dt=dt, s0=s0, dj=dj, J=J, wavelet=wavelet, gap_thresh=gap_thresh, method=method
         )
         if t_grid.size == 0 or freqs.size == 0:
             continue
 
         if apply_coi_mask:
-            F = freqs[None, :]          # (1,F)
-            C = freq_coi[:, None]       # (T,1)
+            F = freqs[None, :]          # (1, F)
+            C = freq_coi[:, None]       # (T, 1)
             if coi_mask_side == "lower":
-                mask = F < C            # 低周波側をNaN
+                mask = F < C
             elif coi_mask_side == "higher":
-                mask = F > C            # 高周波側をNaN
+                mask = F > C
             else:
                 raise ValueError("coi_mask_side must be 'lower' or 'higher'")
+
             power_tf = np.where(mask, np.nan, power_tf)
+            coef_tf = np.where(mask, np.nan + 1j*np.nan, coef_tf)
 
         # Convert back to datetime64[ns]
         time_out = (t_grid * 1e9 + t0_ns).astype("int64").astype("datetime64[ns]")
@@ -195,6 +198,24 @@ def cwt_from_dataset(
                 "units": "arbitrary power",
             },
         ).interp(time=time_ref, kwargs={"fill_value": "extrapolate"})
+
+        da_coef = xr.DataArray(
+            coef_tf,
+            dims=("time", "freq"),
+            coords={"time": time_out, "freq": ("freq", freqs.astype(np.float32))},
+            name=f"{name}{coef_suffix}",
+            attrs={
+                "long_name": f"CWT power of {name}",
+                "wavelet": wavelet,
+                "s0": float(s0),
+                "dj": float(dj),
+                "J": -1 if J is None else int(J),
+                "gap_thresh": np.nan if gap_thresh is None else float(gap_thresh),
+                "normalization": "(dt/Cdelta)*|coef|^2 with Cdelta=0.776",
+                "units": "complex coefficients",
+            },
+        ).interp(time=time_ref, kwargs={"fill_value": "extrapolate"})
+
         da_coi = xr.DataArray(
             freq_coi,
             dims=("time",),
@@ -205,10 +226,71 @@ def cwt_from_dataset(
                 "wavelet": wavelet,
             },
         ).interp(time=time_ref, kwargs={"fill_value": "extrapolate"})
+
         out_vars[da_pow.name] = da_pow
+        out_vars[da_coef.name] = da_coef
         out_vars[da_coi.name] = da_coi
 
     return xr.Dataset(out_vars).assign_coords(time=time_ref)
+
+
+import numpy as np
+import scipy.ndimage as ndimage
+
+def calculate_xwt_wco(ds_cwt, var_e, var_b, dt, dj):# 1. 型の軽量化とデータの取得
+    W_e = ds_cwt[var_e].values.astype(np.complex64)
+    W_b = ds_cwt[var_b].values.astype(np.complex64)
+    scales = (1.0 / (ds_cwt.freq.values * dt)).astype(np.float32)
+    
+    W_eb = W_e * np.conj(W_b)
+    
+    # --- 重要：NaNマスクの保持とゼロ埋め ---
+    # 後で再マスクするために、元のNaNの場所を覚えておく
+    # (COIマスクやギャップ部分を特定)
+    mask_nan = np.isnan(W_eb)
+    
+    # FFTのために NaN を 0 に置換
+    eb_s = np.nan_to_num(W_eb / scales)
+    e2_s = np.nan_to_num((np.abs(W_e)**2) / scales)
+    b2_s = np.nan_to_num((np.abs(W_b)**2) / scales)
+    
+    N = eb_s.shape[0]
+    
+    # 2. 時間軸方向にFFT
+    f_eb = np.fft.fft(eb_s, axis=0)
+    f_e2 = np.fft.fft(e2_s, axis=0)
+    f_b2 = np.fft.fft(b2_s, axis=0)
+    
+    freq_fft = np.fft.fftfreq(N, d=dt).astype(np.float32)
+    omega = 2 * np.pi * freq_fft
+    sigmas = scales / np.sqrt(2.0)
+    
+    # ガウスカーネルの作成
+    kernel_tf = np.exp(-0.5 * (sigmas[None, :]**2) * (omega[:, None]**2))
+    
+    # フィルタ適用と逆FFT
+    s_eb = np.fft.ifft(f_eb * kernel_tf, axis=0)
+    s_e2 = np.fft.ifft(f_e2 * kernel_tf, axis=0)
+    s_b2 = np.fft.ifft(f_b2 * kernel_tf, axis=0)
+    
+    # 3. スケール方向の平滑化
+    window_len = int(0.6 / dj) | 1  # bitwise OR
+    s_eb = ndimage.uniform_filter1d(s_eb, size=window_len, axis=1)
+    s_e2 = ndimage.uniform_filter1d(s_e2, size=window_len, axis=1)
+    s_b2 = ndimage.uniform_filter1d(s_b2, size=window_len, axis=1)
+    
+    # WCO の算出
+    # 分母が0になるのを防ぐための微小値 eps
+    eps = 1e-100
+    wco = (np.abs(s_eb)**2) / (s_e2 * s_b2 + eps)
+    
+    # --- 重要：再マスキング ---
+    # 平滑化によってNaNだった境界が少しボケるが、元の不確実な領域をNaNに戻す
+    wco[mask_nan] = np.nan
+    
+    phase = np.angle(W_eb, deg=True)
+    
+    return wco.astype(np.float32), phase.astype(np.float32)
 
 
 # -----------------------------------------------------------------------------
