@@ -5,6 +5,9 @@
         },
         {
             "path": "../../../../mnt/j/observation_data"
+        },
+        {
+            "path": "../../../../mnt/j/KAW_observation"
         }
     ]
 }
