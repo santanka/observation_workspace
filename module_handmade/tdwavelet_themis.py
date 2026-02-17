@@ -175,7 +175,7 @@ def cwt_from_dataset(
             coef_tf = np.where(mask, np.nan + 1j*np.nan, coef_tf)
 
         # Convert back to datetime64[ns]
-        time_out = (t_grid * 1e9 + t0_ns).astype("int64").astype("datetime64[ns]")
+        time_out = np.round(t_grid * 1e9 + t0_ns).astype("int64").astype("datetime64[ns]")
         if time_ref is None:
             time_ref = time_out
 
