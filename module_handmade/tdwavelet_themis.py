@@ -292,6 +292,172 @@ def calculate_xwt_wco(ds_cwt, var_e, var_b, dt, dj):# 1. 型の軽量化とデ�
     
     return wco.astype(np.float32), phase.astype(np.float32)
 
+import numpy as np
+import scipy.ndimage as ndimage
+
+def calculate_xwt_wco_blocked(ds_cwt, var_e, var_b, dt, dj, block_f=32):
+    W_e = ds_cwt[var_e].values.astype(np.complex64, copy=False)
+    W_b = ds_cwt[var_b].values.astype(np.complex64, copy=False)
+    scales = (1.0 / (ds_cwt.freq.values * dt)).astype(np.float32)
+
+    W_eb = W_e * np.conj(W_b)
+    mask_nan = np.isnan(W_eb)
+
+    # NaN -> 0（時間平滑はFFTでやるので）
+    eb_s_all = np.nan_to_num(W_eb / scales)
+    e2_s_all = np.nan_to_num((np.abs(W_e)**2) / scales)
+    b2_s_all = np.nan_to_num((np.abs(W_b)**2) / scales)
+
+    N, F = eb_s_all.shape
+    freq_fft = np.fft.fftfreq(N, d=dt).astype(np.float32)
+    omega = (2*np.pi*freq_fft).astype(np.float32)
+
+    # 時間平滑後の入れ物（これだけは最終的に必要）
+    s_eb = np.empty((N, F), dtype=np.complex64)
+    s_e2 = np.empty((N, F), dtype=np.complex64)
+    s_b2 = np.empty((N, F), dtype=np.complex64)
+
+    for f0 in range(0, F, block_f):
+        f1 = min(F, f0 + block_f)
+        sigmas = (scales[f0:f1] / np.sqrt(2.0)).astype(np.float32)  # (Fb,)
+
+        # ブロックだけFFT
+        f_eb = np.fft.fft(eb_s_all[:, f0:f1], axis=0)
+        f_e2 = np.fft.fft(e2_s_all[:, f0:f1], axis=0)
+        f_b2 = np.fft.fft(b2_s_all[:, f0:f1], axis=0)
+
+        # kernel もブロックだけ作る（巨大行列を避ける）
+        kernel = np.exp(-0.5 * (omega[:, None]**2) * (sigmas[None, :]**2)).astype(np.float32)
+
+        s_eb[:, f0:f1] = np.fft.ifft(f_eb * kernel, axis=0).astype(np.complex64, copy=False)
+        s_e2[:, f0:f1] = np.fft.ifft(f_e2 * kernel, axis=0).astype(np.complex64, copy=False)
+        s_b2[:, f0:f1] = np.fft.ifft(f_b2 * kernel, axis=0).astype(np.complex64, copy=False)
+
+        # ここで f_eb/f_e2/f_b2/kernel はスコープ外で破棄される
+
+    # スケール方向の平滑（ここは全周波数一括）
+    window_len = int(0.6 / dj) | 1
+    s_eb = ndimage.uniform_filter1d(s_eb, size=window_len, axis=1)
+    s_e2 = ndimage.uniform_filter1d(s_e2, size=window_len, axis=1)
+    s_b2 = ndimage.uniform_filter1d(s_b2, size=window_len, axis=1)
+
+    eps = 1e-100
+    wco = (np.abs(s_eb)**2) / (s_e2 * s_b2 + eps)
+    wco[mask_nan] = np.nan
+    phase = np.angle(W_eb, deg=True)
+
+    return wco.astype(np.float32), phase.astype(np.float32)
+
+import numpy as np
+import scipy.ndimage as ndimage
+
+def wco_hist_streaming_from_cwtcoef(
+    W_e: np.ndarray, W_b: np.ndarray,
+    dt: float, dj: float, freqs: np.ndarray,
+    n_points: int, bins: np.ndarray,
+    block_f: int = 32, eps: float = 1e-100
+) -> np.ndarray:
+    """
+    W_e, W_b: (N, F) complex64 (coef)
+    freqs: (F,) float
+    bins: 1D bin edges (e.g., np.linspace(0,1,1001))
+    return: total_hists (F, n_bins)
+    """
+
+    W_e = np.asarray(W_e, np.complex64)
+    W_b = np.asarray(W_b, np.complex64)
+    freqs = np.asarray(freqs, np.float32)
+
+    N, F = W_e.shape
+    assert W_b.shape == (N, F)
+
+    n_bins = len(bins) - 1
+    total_h = np.zeros((F, n_bins), dtype=np.int64)
+
+    # time cut: remove edge quarters (your current design)
+    mid = n_points // 4
+    t0, t1 = mid, N - mid
+    if t1 <= t0 + 1:
+        return total_h
+
+    # scale axis
+    scales = (1.0 / (freqs * dt)).astype(np.float32)
+
+    # smoothing in scale axis (must match your calculate_xwt_wco)
+    window_len = int(0.6 / dj)
+    if window_len % 2 == 0:
+        window_len += 1
+    halo = window_len // 2
+
+    # omega for time smoothing
+    omega = (2.0 * np.pi * np.fft.fftfreq(N, d=dt)).astype(np.float32)
+
+    # For hist binning in [0,1]
+    inv_bw = n_bins  # since bins assumed uniform on [0,1], bin = floor(wco*n_bins)
+
+    for f0 in range(0, F, block_f):
+        f1 = min(F, f0 + block_f)
+
+        # haloed band for correct scale smoothing
+        a0 = max(0, f0 - halo)
+        a1 = min(F, f1 + halo)
+
+        We = W_e[:, a0:a1]
+        Wb = W_b[:, a0:a1]
+        sc = scales[a0:a1]  # (Fb_halo,)
+
+        Web = We * np.conj(Wb)
+        mask_nan = np.isnan(Web)
+
+        # NaN->0 for FFT smoothing
+        eb_s = np.nan_to_num(Web / sc, nan=0.0)
+        e2_s = np.nan_to_num((np.abs(We) ** 2) / sc, nan=0.0)
+        b2_s = np.nan_to_num((np.abs(Wb) ** 2) / sc, nan=0.0)
+
+        sigmas = (sc / np.sqrt(2.0)).astype(np.float32)  # (Fb_halo,)
+        kernel = np.exp(-0.5 * (omega[:, None] ** 2) * (sigmas[None, :] ** 2)).astype(np.float32)
+
+        # time smoothing
+        s_eb = np.fft.ifft(np.fft.fft(eb_s, axis=0) * kernel, axis=0).astype(np.complex64, copy=False)
+        s_e2 = np.fft.ifft(np.fft.fft(e2_s, axis=0) * kernel, axis=0).astype(np.complex64, copy=False)
+        s_b2 = np.fft.ifft(np.fft.fft(b2_s, axis=0) * kernel, axis=0).astype(np.complex64, copy=False)
+
+        # scale smoothing (on haloed band)
+        s_eb = ndimage.uniform_filter1d(s_eb, size=window_len, axis=1)
+        s_e2 = ndimage.uniform_filter1d(s_e2, size=window_len, axis=1)
+        s_b2 = ndimage.uniform_filter1d(s_b2, size=window_len, axis=1)
+
+        wco = (np.abs(s_eb) ** 2) / (s_e2 * s_b2 + eps)
+        wco = wco.astype(np.float32)
+        wco[mask_nan] = np.nan
+
+        # pick central band only (drop halo)
+        c0 = f0 - a0
+        c1 = c0 + (f1 - f0)
+        wco_c = wco[t0:t1, c0:c1]  # (Nt, Fb)
+
+        # ---- fast histogram update (no per-freq Python loop) ----
+        # reshape to (Fb, Nt) for easier freq indexing
+        w = wco_c.T  # (Fb, Nt)
+        valid = np.isfinite(w)
+        if not valid.any():
+            continue
+
+        # clip to [0,1] since bins are defined there
+        ww = np.clip(w, 0.0, 1.0)
+        bin_idx = np.floor(ww * inv_bw).astype(np.int32)
+        bin_idx = np.clip(bin_idx, 0, n_bins - 1)
+
+        # flatten valid points
+        bin_flat = bin_idx[valid]
+        # freq index per element
+        freq_ids = (f0 + np.arange(f1 - f0, dtype=np.int32))[:, None]
+        freq_flat = np.broadcast_to(freq_ids, w.shape)[valid]
+
+        np.add.at(total_h, (freq_flat, bin_flat), 1)
+
+    return total_h
+
 
 # -----------------------------------------------------------------------------
 # Example usage
