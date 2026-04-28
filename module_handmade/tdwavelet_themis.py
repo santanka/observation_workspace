@@ -118,23 +118,56 @@ def cwt_from_dataset(
     coef_suffix: str = "_coef",
     apply_coi_mask: bool = True,
     coi_mask_side: str = "lower",
+    psd_calibration: xr.DataArray | None = None,
+    auto_calibrate_psd: bool = False,
+    calibration_duration: float | None = None,
+    calibration_freqs_ref: Sequence[float] | None = None,
+    calibration_A0: float = 1.0,
+    e_unit: str = "mV/m",
+    b_unit: str = "nT",
 ) -> xr.Dataset:
     """Run CWT for selected E/B components in `ds`.
 
-    Selection:
-      - If `variables` is None, pick variables with names starting with 'E' or 'B',
-        containing '_fac_' and ending with '_x', '_y', or '_z'.
-
-    Output variables:
-      - f"{name}{suffix}": DataArray(time, freq) power
-      - f"{name}_coi": DataArray(time) frequency of COI line
-
-    Shared coordinates:
-      - time (per-variable t_grid; if inputs share the same grid they will align)
-      - freq_<name> per variable to avoid accidental misalignment across sampling rates
+    Behavior
+    --------
+    - da_coef is always returned as complex wavelet coefficients.
+    - If psd_calibration is None and auto_calibrate_psd is False:
+        da_pow = raw wavelet power
+    - If psd_calibration is provided, or auto_calibrate_psd is True:
+        da_pow = calibrated, scale-rectified wavelet PSD [(unit)^2 / Hz]
+    - auto_calibrate_psd は False 推奨！！！！
     """
     if "time" not in ds.coords:
         raise ValueError("ds must have a 'time' coordinate")
+
+    # ---- optional auto calibration for PSD ----
+    if psd_calibration is None and auto_calibrate_psd:
+        if dt is None:
+            t_ns0 = ds.time.values.astype("datetime64[ns]").astype("int64")
+            dt_for_cal = float(np.median(np.diff(t_ns0))) / 1e9
+        else:
+            dt_for_cal = float(dt)
+
+        fs_for_cal = 1.0 / dt_for_cal
+
+        if calibration_duration is None:
+            t0 = ds.time.values[0]
+            t1 = ds.time.values[-1]
+            calibration_duration = float((t1 - t0) / np.timedelta64(1, "s"))
+
+        psd_calibration, _ = build_psd_calibration_curve(
+            tw=__import__(__name__),
+            fs=fs_for_cal,
+            duration=calibration_duration,
+            freqs_ref=calibration_freqs_ref,
+            A0=calibration_A0,
+            wavelet=wavelet,
+            s0=s0,
+            dj=dj,
+            J=J,
+            use_coi_mask=apply_coi_mask,
+            trim_cycles=5,
+        )
 
     import re
     all_vars = list(ds.data_vars)
@@ -145,59 +178,102 @@ def cwt_from_dataset(
         variables = [v for v in variables if v in all_vars]
 
     out_vars: Dict[str, xr.DataArray] = {}
-
     time_ref = None
 
-    # Use numeric time axis for computation (ns to seconds float)
+    # numeric time axis for computation
     t_ns = ds.time.values.astype("datetime64[ns]").astype("int64")
     t0_ns = int(t_ns[0])
     t_sec = (t_ns - t0_ns) / 1e9
 
+    use_psd_calibration = psd_calibration is not None
+
     for name in variables:
         y = np.asarray(ds[name].values, dtype=float)
         t_grid, freqs, coef_tf, power_tf, freq_coi = cwt_1d(
-            t_sec, y, dt=dt, s0=s0, dj=dj, J=J, wavelet=wavelet, gap_thresh=gap_thresh, method=method
+            t_sec, y, dt=dt, s0=s0, dj=dj, J=J,
+            wavelet=wavelet, gap_thresh=gap_thresh, method=method
         )
         if t_grid.size == 0 or freqs.size == 0:
             continue
 
         if apply_coi_mask:
-            F = freqs[None, :]          # (1, F)
-            C = freq_coi[:, None]       # (T, 1)
+            F = freqs[None, :]
+            C = freq_coi[:, None]
             if coi_mask_side == "lower":
                 mask = F < C
             elif coi_mask_side == "higher":
                 mask = F > C
             else:
                 raise ValueError("coi_mask_side must be 'lower' or 'higher'")
-
             power_tf = np.where(mask, np.nan, power_tf)
             coef_tf = np.where(mask, np.nan + 1j*np.nan, coef_tf)
 
-        # Convert back to datetime64[ns]
         time_out = np.round(t_grid * 1e9 + t0_ns).astype("int64").astype("datetime64[ns]")
         if time_ref is None:
             time_ref = time_out
 
-        da_pow = xr.DataArray(
-            power_tf,
-            dims=("time", "freq"),
-            coords={
-                "time": time_out,
-                "freq": ("freq", freqs.astype(np.float32, copy=False)),
-            },
-            name=f"{name}{suffix}",
-            attrs={
-                "long_name": f"CWT power of {name}",
-                "wavelet": wavelet,
-                "s0": float(s0),
-                "dj": float(dj),
-                "J": -1 if J is None else int(J),
-                "gap_thresh": np.nan if gap_thresh is None else float(gap_thresh),
-                "normalization": "(dt/Cdelta)*|coef|^2 with Cdelta=0.776",
-                "units": "arbitrary power",
-            },
-        ).interp(time=time_ref, kwargs={"fill_value": "extrapolate"})
+        dt_used = float(np.median(np.diff(t_grid)))
+
+        if name.startswith("E"):
+            input_unit = e_unit
+        elif name.startswith("B"):
+            input_unit = b_unit
+        else:
+            input_unit = "unit"
+
+        if use_psd_calibration:
+            scales = _get_scale_from_freq(freqs, dt_used).astype(np.float32)
+            da_scale = xr.DataArray(
+                scales,
+                dims=("freq",),
+                coords={"freq": freqs.astype(np.float32, copy=False)},
+            )
+            da_K = psd_calibration.interp(freq=da_scale.freq)
+
+            da_pow = xr.DataArray(
+                power_tf,
+                dims=("time", "freq"),
+                coords={
+                    "time": time_out,
+                    "freq": ("freq", freqs.astype(np.float32, copy=False)),
+                },
+                name=f"{name}{suffix}",
+                attrs={
+                    "long_name": f"CWT PSD of {name}",
+                    "wavelet": wavelet,
+                    "s0": float(s0),
+                    "dj": float(dj),
+                    "J": -1 if J is None else int(J),
+                    "gap_thresh": np.nan if gap_thresh is None else float(gap_thresh),
+                    "normalization": "K_psd * ((dt/Cdelta) * |coef|^2 / scale), Cdelta=0.776",
+                    "units": f"({input_unit})^2 / Hz",
+                },
+            )
+            da_pow = (da_pow / da_scale * da_K).interp(
+                time=time_ref, kwargs={"fill_value": "extrapolate"}
+            )
+            da_pow.name = f"{name}{suffix}"
+        else:
+            da_pow = xr.DataArray(
+                power_tf,
+                dims=("time", "freq"),
+                coords={
+                    "time": time_out,
+                    "freq": ("freq", freqs.astype(np.float32, copy=False)),
+                },
+                name=f"{name}{suffix}",
+                attrs={
+                    "long_name": f"CWT raw power of {name}",
+                    "wavelet": wavelet,
+                    "s0": float(s0),
+                    "dj": float(dj),
+                    "J": -1 if J is None else int(J),
+                    "gap_thresh": np.nan if gap_thresh is None else float(gap_thresh),
+                    "normalization": "(dt/Cdelta) * |coef|^2, Cdelta=0.776",
+                    "units": "raw wavelet power",
+                },
+            ).interp(time=time_ref, kwargs={"fill_value": "extrapolate"})
+            da_pow.name = f"{name}{suffix}"
 
         da_coef = xr.DataArray(
             coef_tf,
@@ -205,13 +281,13 @@ def cwt_from_dataset(
             coords={"time": time_out, "freq": ("freq", freqs.astype(np.float32))},
             name=f"{name}{coef_suffix}",
             attrs={
-                "long_name": f"CWT power of {name}",
+                "long_name": f"CWT coefficients of {name}",
                 "wavelet": wavelet,
                 "s0": float(s0),
                 "dj": float(dj),
                 "J": -1 if J is None else int(J),
                 "gap_thresh": np.nan if gap_thresh is None else float(gap_thresh),
-                "normalization": "(dt/Cdelta)*|coef|^2 with Cdelta=0.776",
+                "normalization": "coefficients from pywt.cwt",
                 "units": "complex coefficients",
             },
         ).interp(time=time_ref, kwargs={"fill_value": "extrapolate"})
@@ -224,6 +300,7 @@ def cwt_from_dataset(
             attrs={
                 "long_name": f"COI cutoff frequency for {name}",
                 "wavelet": wavelet,
+                "units": "Hz",
             },
         ).interp(time=time_ref, kwargs={"fill_value": "extrapolate"})
 
@@ -232,6 +309,94 @@ def cwt_from_dataset(
         out_vars[da_coi.name] = da_coi
 
     return xr.Dataset(out_vars).assign_coords(time=time_ref)
+
+def build_poynting_calibration_curve(
+    tw,
+    fs=64.0,
+    duration=256.0,
+    freqs_ref=None,
+    E0=10.0,
+    B0=2.0,
+    phase_deg=0.0,
+    wavelet="cmor1.5-1.0",
+    s0=2.0,
+    dj=1/32,
+    J=None,
+    use_coi_mask=True,
+    trim_cycles=5,
+):
+    """
+    出力周波数グリッド上に K_signed(freq), K_abs(freq) を作る。
+    """
+    dt = 1.0 / fs
+
+    n = int(duration * fs)
+    t = np.arange(n) * dt
+    x = np.zeros_like(t)
+    time = pd.to_datetime("2022-01-01") + pd.to_timedelta(t, unit="s")
+    ds = xr.Dataset({"X_fac_x": ("time", x)}, coords={"time": time})
+
+    ds_cwt = tw.cwt_from_dataset(
+        ds,
+        dt=dt,
+        variables=["X_fac_x"],
+        s0=s0,
+        dj=dj,
+        J=J,
+        wavelet=wavelet,
+        apply_coi_mask=use_coi_mask,
+    )
+    freqs_out = ds_cwt["freq"].values.astype(float)
+
+    if freqs_ref is None:
+        f_lo = max(freqs_out[1], 3.0 / duration)
+        f_hi = min(freqs_out[-2], fs / 4.0)
+        if f_hi <= f_lo:
+            f_lo = freqs_out[1]
+            f_hi = freqs_out[-2]
+        n_ref = min(12, max(6, len(freqs_out)//40))
+        freqs_ref = np.geomspace(f_lo, f_hi, n_ref)
+
+    df_cal = calibrate_poynting_factor_scan_frequency_scaled(
+        tw=tw,
+        fs=fs,
+        duration=duration,
+        freqs_test=tuple(freqs_ref),
+        E0=E0,
+        B0=B0,
+        phase_deg=phase_deg,
+        wavelet=wavelet,
+        s0=s0,
+        dj=dj,
+        J=J,
+        use_coi_mask=use_coi_mask,
+        trim_cycles=trim_cycles,
+    )
+
+    K_signed_interp = np.interp(
+        freqs_out,
+        df_cal["f_bin_hz"].values,
+        df_cal["K_signed_for_mean_flux"].values,
+        left=df_cal["K_signed_for_mean_flux"].values[0],
+        right=df_cal["K_signed_for_mean_flux"].values[-1],
+    )
+
+    K_abs_interp = np.interp(
+        freqs_out,
+        df_cal["f_bin_hz"].values,
+        df_cal["K_abs_for_absflux"].values,
+        left=df_cal["K_abs_for_absflux"].values[0],
+        right=df_cal["K_abs_for_absflux"].values[-1],
+    )
+
+    ds_K = xr.Dataset(
+        {
+            "K_signed": ("freq", K_signed_interp.astype(np.float32)),
+            "K_abs": ("freq", K_abs_interp.astype(np.float32)),
+        },
+        coords={"freq": freqs_out.astype(np.float32)},
+    )
+    return ds_K, df_cal
 
 
 import numpy as np
@@ -457,6 +622,431 @@ def wco_hist_streaming_from_cwtcoef(
         np.add.at(total_h, (freq_flat, bin_flat), 1)
 
     return total_h
+
+import numpy as np
+import pandas as pd
+import xarray as xr
+
+MU0 = 4e-7 * np.pi
+
+
+def _get_scale_from_freq(freq_hz: np.ndarray, dt: float) -> np.ndarray:
+    """
+    君の tw.calculate_xwt_wco と整合する scale 定義。
+    """
+    freq_hz = np.asarray(freq_hz, dtype=float)
+    return 1.0 / (freq_hz * dt)
+
+
+def calibrate_poynting_factor_single_tone_scaled(
+    tw,
+    fs=64.0,
+    duration=256.0,
+    f0=0.2,
+    E0=1.0,
+    B0=1.0,
+    phase_deg=0.0,
+    wavelet="cmor1.5-1.0",
+    s0=2.0,
+    dj=1/32,
+    J=None,
+    use_coi_mask=True,
+    trim_cycles=5,
+):
+    """
+    単色波を使って、proxy/scale 版の S_parallel 較正係数を求める。
+
+    ここでの proxy は
+        proxy_scaled = Re(WE1*conj(WB2) - WE2*conj(WB1)) / scale
+    とする。
+    """
+
+    dt = 1.0 / fs
+    n = int(duration * fs)
+    t = np.arange(n) * dt
+    phase = np.deg2rad(phase_deg)
+
+    # 右手系 (x, y, z=b0) を想定
+    # S_parallel = (E_x B_y - E_y B_x) / mu0
+    Ex = E0 * np.cos(2 * np.pi * f0 * t)
+    Ey = np.zeros_like(Ex)
+    Bx = np.zeros_like(Ex)
+    By = B0 * np.cos(2 * np.pi * f0 * t + phase)
+
+    time = pd.to_datetime("2022-01-01") + pd.to_timedelta(t, unit="s")
+    ds = xr.Dataset(
+        {
+            "E64_fac_x": ("time", Ex),
+            "E64_fac_y": ("time", Ey),
+            "B64_fac_x": ("time", Bx),
+            "B64_fac_y": ("time", By),
+        },
+        coords={"time": time},
+    )
+
+    # ここでは raw CWT で十分。da_coef が欲しいだけなので PSD 較正は不要。
+    ds_cwt = tw.cwt_from_dataset(
+        ds,
+        dt=dt,
+        variables=["E64_fac_x", "E64_fac_y", "B64_fac_x", "B64_fac_y"],
+        s0=s0,
+        dj=dj,
+        J=J,
+        wavelet=wavelet,
+        apply_coi_mask=use_coi_mask,
+        psd_calibration=None,
+        auto_calibrate_psd=False,
+    )
+
+    freqs = ds_cwt["freq"].values.astype(float)
+    i_f = int(np.argmin(np.abs(freqs - f0)))
+    f_bin = float(freqs[i_f])
+    scale_bin = float(_get_scale_from_freq(np.array([f_bin]), dt)[0])
+
+    WE1 = ds_cwt["E64_fac_x_coef"].values[:, i_f]
+    WE2 = ds_cwt["E64_fac_y_coef"].values[:, i_f]
+    WB1 = ds_cwt["B64_fac_x_coef"].values[:, i_f]
+    WB2 = ds_cwt["B64_fac_y_coef"].values[:, i_f]
+
+    cross = np.real(WE1 * np.conj(WB2) - WE2 * np.conj(WB1))
+    proxy_scaled = cross / scale_bin
+
+    # ---- trim_cycles を安全側に自動調整 ----
+    # 前後で全長の 45% を超えないようにする
+    max_trim_cycles = max(0.0, 0.45 * duration * f_bin)
+    trim_cycles_eff = min(float(trim_cycles), max_trim_cycles)
+
+    n_trim = int(trim_cycles_eff * fs / f_bin)
+
+    # 念のため最終防衛
+    max_n_trim = max(0, (len(proxy_scaled) - 2) // 2)
+    n_trim = min(n_trim, max_n_trim)
+
+    if n_trim > 0:
+        sl = slice(n_trim, len(proxy_scaled) - n_trim)
+    else:
+        sl = slice(0, len(proxy_scaled))
+
+    proxy_valid = proxy_scaled[sl]
+    proxy_valid = proxy_valid[np.isfinite(proxy_valid)]
+
+    if proxy_valid.size == 0:
+        raise RuntimeError(
+            f"No valid proxy values remain after masking/trimming. "
+            f"f0_input={f0:.6g}, f_bin={f_bin:.6g}, duration={duration:.6g}, "
+            f"trim_cycles_eff={trim_cycles_eff:.3f}"
+        )
+
+    proxy_mean = float(np.nanmean(proxy_valid))
+    proxy_abs_mean = float(np.nanmean(np.abs(proxy_valid)))
+
+    # 理論的な時間平均 Poynting flux
+    # <S> = (1 / (2 mu0)) E0 B0 cos(phi)
+    S_theory_mean = (E0 * B0 * np.cos(phase)) / (2.0 * MU0)
+
+    # 参考: 時系列から直接計算した instantaneous S
+    S_inst = (Ex * By - Ey * Bx) / MU0
+    S_inst_mean = float(np.mean(S_inst[sl]))
+    S_inst_abs_mean = float(np.mean(np.abs(S_inst[sl])))
+
+    K_signed = S_theory_mean / proxy_mean if proxy_mean != 0 else np.nan
+    K_abs = S_inst_abs_mean / proxy_abs_mean if proxy_abs_mean != 0 else np.nan
+
+    result = {
+        "f0_input_hz": f0,
+        "f_bin_hz": f_bin,
+        "scale_bin": scale_bin,
+        "phase_deg": phase_deg,
+        "trim_cycles_requested": float(trim_cycles),
+        "trim_cycles_effective": float(trim_cycles_eff),
+        "n_trim": int(n_trim),
+        "S_theory_mean": S_theory_mean,
+        "S_inst_mean_from_timeseries": S_inst_mean,
+        "S_inst_abs_mean_from_timeseries": S_inst_abs_mean,
+        "proxy_scaled_mean": proxy_mean,
+        "proxy_scaled_abs_mean": proxy_abs_mean,
+        "K_signed_for_mean_flux": K_signed,
+        "K_abs_for_absflux": K_abs,
+        "suggested_formula_signed": (
+            "Spara_tf ~= K_signed * Re(WE1*conj(WB2) - WE2*conj(WB1)) / scale"
+        ),
+        "suggested_formula_abs": (
+            "abs_Spara_tf ~= K_abs * abs(Re(WE1*conj(WB2) - WE2*conj(WB1)) / scale)"
+        ),
+    }
+
+    return result, ds_cwt
+
+
+def calibrate_poynting_factor_scan_frequency_scaled(
+    tw,
+    fs=64.0,
+    duration=256.0,
+    freqs_test=(0.05, 0.1, 0.2, 0.5, 1.0, 2.0),
+    E0=1.0,
+    B0=1.0,
+    phase_deg=0.0,
+    wavelet="cmor1.5-1.0",
+    s0=2.0,
+    dj=1/32,
+    J=None,
+    use_coi_mask=True,
+    trim_cycles=5,
+):
+    """
+    proxy/scale 版で複数周波数の較正係数を調べる。
+    """
+    rows = []
+    for f0 in freqs_test:
+        result, _ = calibrate_poynting_factor_single_tone_scaled(
+            tw=tw,
+            fs=fs,
+            duration=duration,
+            f0=f0,
+            E0=E0,
+            B0=B0,
+            phase_deg=phase_deg,
+            wavelet=wavelet,
+            s0=s0,
+            dj=dj,
+            J=J,
+            use_coi_mask=use_coi_mask,
+            trim_cycles=trim_cycles,
+        )
+        rows.append(result)
+
+    return pd.DataFrame(rows)
+
+import numpy as np
+import pandas as pd
+import xarray as xr
+
+def _get_scale_from_freq(freq_hz: np.ndarray, dt: float) -> np.ndarray:
+    freq_hz = np.asarray(freq_hz, dtype=float)
+    return 1.0 / (freq_hz * dt)
+
+
+def calibrate_auto_psd_factor_single_tone_scaled(
+    tw,
+    fs=64.0,
+    duration=256.0,
+    f0=0.2,
+    A0=1.0,
+    wavelet="cmor1.5-1.0",
+    s0=2.0,
+    dj=1/32,
+    J=None,
+    use_coi_mask=True,
+    trim_cycles=5,
+    variable_name="X_fac_x",
+):
+    """
+    単色波 x(t)=A0*cos(2πf0 t) を入力し、
+    rectified wavelet power /Hz への較正係数 K_psd を求める。
+
+    ここで rectified power は
+        P_rect = power / scale
+    とする。
+
+    出力 K_psd は
+        PSD_tf ~= K_psd * P_rect
+    となるように定める。
+    """
+
+    dt = 1.0 / fs
+    n = int(duration * fs)
+    t = np.arange(n) * dt
+    x = A0 * np.cos(2 * np.pi * f0 * t)
+
+    time = pd.to_datetime("2022-01-01") + pd.to_timedelta(t, unit="s")
+    ds = xr.Dataset(
+        {variable_name: ("time", x)},
+        coords={"time": time},
+    )
+
+    ds_cwt = cwt_from_dataset(
+        ds,
+        dt=dt,
+        variables=[variable_name],
+        s0=s0,
+        dj=dj,
+        J=J,
+        wavelet=wavelet,
+        apply_coi_mask=use_coi_mask,
+        psd_calibration=None,
+        auto_calibrate_psd=False,
+    )
+
+    freqs = ds_cwt["freq"].values.astype(float)
+    i_f = int(np.argmin(np.abs(freqs - f0)))
+    f_bin = float(freqs[i_f])
+
+    df = np.abs(np.gradient(freqs))
+    df_bin = float(df[i_f])
+
+    scales = _get_scale_from_freq(freqs, dt)
+    scale_bin = float(scales[i_f])
+
+    power_bin = ds_cwt[f"{variable_name}_cwt"].values[:, i_f].astype(float)
+    rect_bin = power_bin / scale_bin
+
+    # ---- trim_cycles を安全側に自動調整 ----
+    max_trim_cycles = max(0.0, 0.45 * duration * f_bin)
+    trim_cycles_eff = min(float(trim_cycles), max_trim_cycles)
+
+    n_trim = int(trim_cycles_eff * fs / f_bin)
+
+    max_n_trim = max(0, (len(rect_bin) - 2) // 2)
+    n_trim = min(n_trim, max_n_trim)
+
+    if n_trim > 0:
+        sl = slice(n_trim, len(rect_bin) - n_trim)
+    else:
+        sl = slice(0, len(rect_bin))
+
+    rect_valid = rect_bin[sl]
+    rect_valid = rect_valid[np.isfinite(rect_valid)]
+
+    if rect_valid.size == 0:
+        raise RuntimeError(
+            f"No valid rectified power values remain after masking/trimming. "
+            f"f0_input={f0:.6g}, f_bin={f_bin:.6g}, duration={duration:.6g}, "
+            f"trim_cycles_eff={trim_cycles_eff:.3f}"
+        )
+
+    rect_mean = float(np.nanmean(rect_valid))
+
+    # one-sided PSD のビン積分が A0^2/2 になるようにする
+    psd_theory_peak = (A0**2 / 2.0) / df_bin
+    K_psd = psd_theory_peak / rect_mean if rect_mean != 0 else np.nan
+
+    return {
+        "f0_input_hz": f0,
+        "f_bin_hz": f_bin,
+        "df_bin_hz": df_bin,
+        "scale_bin": scale_bin,
+        "trim_cycles_requested": float(trim_cycles),
+        "trim_cycles_effective": float(trim_cycles_eff),
+        "n_trim": int(n_trim),
+        "rectified_power_mean": rect_mean,
+        "psd_theory_peak": psd_theory_peak,
+        "K_psd": K_psd,
+    }, ds_cwt
+
+
+def calibrate_auto_psd_factor_scan_frequency_scaled(
+    tw,
+    fs=64.0,
+    duration=256.0,
+    freqs_test=(0.05, 0.1, 0.2, 0.5, 1.0, 2.0),
+    A0=1.0,
+    wavelet="cmor1.5-1.0",
+    s0=2.0,
+    dj=1/32,
+    J=None,
+    use_coi_mask=True,
+    trim_cycles=5,
+    variable_name="X_fac_x",
+):
+    rows = []
+    for f0 in freqs_test:
+        result, _ = calibrate_auto_psd_factor_single_tone_scaled(
+            tw=tw,
+            fs=fs,
+            duration=duration,
+            f0=f0,
+            A0=A0,
+            wavelet=wavelet,
+            s0=s0,
+            dj=dj,
+            J=J,
+            use_coi_mask=use_coi_mask,
+            trim_cycles=trim_cycles,
+            variable_name=variable_name,
+        )
+        rows.append(result)
+    return pd.DataFrame(rows)
+
+
+def build_psd_calibration_curve(
+    tw,
+    fs=64.0,
+    duration=256.0,
+    freqs_ref=None,
+    A0=1.0,
+    wavelet="cmor1.5-1.0",
+    s0=2.0,
+    dj=1/32,
+    J=None,
+    use_coi_mask=True,
+    trim_cycles=5,
+):
+    """
+    出力周波数グリッド上に K_psd(freq) を作る。
+    """
+    dt = 1.0 / fs
+
+    # ダミー系列で freq グリッドを取得
+    n = int(duration * fs)
+    t = np.arange(n) * dt
+    x = np.zeros_like(t)
+    time = pd.to_datetime("2022-01-01") + pd.to_timedelta(t, unit="s")
+    ds = xr.Dataset({"X_fac_x": ("time", x)}, coords={"time": time})
+
+    ds_cwt = cwt_from_dataset(
+        ds,
+        dt=dt,
+        variables=["X_fac_x"],
+        s0=s0,
+        dj=dj,
+        J=J,
+        wavelet=wavelet,
+        apply_coi_mask=use_coi_mask,
+    )
+    freqs_out = ds_cwt["freq"].values.astype(float)
+
+    if freqs_ref is None:
+        # 出力ビンの中から数点選ぶ
+        idx = np.unique(
+            np.round(np.linspace(1, len(freqs_out)-2, min(12, len(freqs_out)-2))).astype(int)
+        )
+        freqs_ref = freqs_out[idx]
+
+    df_cal = calibrate_auto_psd_factor_scan_frequency_scaled(
+        tw=tw,
+        fs=fs,
+        duration=duration,
+        freqs_test=tuple(freqs_ref),
+        A0=A0,
+        wavelet=wavelet,
+        s0=s0,
+        dj=dj,
+        J=J,
+        use_coi_mask=use_coi_mask,
+        trim_cycles=trim_cycles,
+        variable_name="X_fac_x",
+    )
+
+    K_interp = np.interp(
+        freqs_out,
+        df_cal["f_bin_hz"].values,
+        df_cal["K_psd"].values,
+        left=df_cal["K_psd"].values[0],
+        right=df_cal["K_psd"].values[-1],
+    )
+
+    da_K = xr.DataArray(
+        K_interp.astype(np.float32),
+        dims=("freq",),
+        coords={"freq": freqs_out.astype(np.float32)},
+        name="K_psd",
+        attrs={
+            "long_name": "Calibration factor for scale-corrected wavelet PSD",
+            "units": "depends on input units; output becomes input_unit^2/Hz",
+        },
+    )
+
+    return da_K, df_cal
 
 
 # -----------------------------------------------------------------------------
