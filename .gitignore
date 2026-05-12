@@ -2,6 +2,7 @@
 !*/
 !*.*
 /.venv_pyspedas
+/geopack-vectorize
 *.cdf
 *.zip
 *.html
