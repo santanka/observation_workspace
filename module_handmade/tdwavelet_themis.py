@@ -428,11 +428,13 @@ def calculate_xwt_wco(ds_cwt, var_e, var_b, dt, dj):# 1. 型の軽量化とデ�
     
     freq_fft = np.fft.fftfreq(N, d=dt).astype(np.float32)
     omega = 2 * np.pi * freq_fft
-    sigmas = scales / np.sqrt(2.0)
+    #sigmas = scales / np.sqrt(2.0)
     
     # ガウスカーネルの作成
-    kernel_tf = np.exp(-0.5 * (sigmas[None, :]**2) * (omega[:, None]**2))
-    
+    #kernel_tf = np.exp(-0.5 * (sigmas[None, :]**2) * (omega[:, None]**2))
+    sigmas_t = (scales * dt / np.sqrt(2.0)).astype(np.float32)
+    kernel_tf = np.exp(-0.5 * (omega[:, None]**2) * (sigmas_t[None, :]**2))
+
     # フィルタ適用と逆FFT
     s_eb = np.fft.ifft(f_eb * kernel_tf, axis=0)
     s_e2 = np.fft.ifft(f_e2 * kernel_tf, axis=0)
