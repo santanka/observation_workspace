@@ -125,6 +125,8 @@ def cwt_from_dataset(
     calibration_A0: float = 1.0,
     e_unit: str = "mV/m",
     b_unit: str = "nT",
+    progress: bool = False,
+    progress_desc: str | None = None,
 ) -> xr.Dataset:
     """Run CWT for selected E/B components in `ds`.
 
@@ -187,7 +189,15 @@ def cwt_from_dataset(
 
     use_psd_calibration = psd_calibration is not None
 
-    for name in variables:
+    var_iter = variables
+    if progress:
+        try:
+            from tqdm.auto import tqdm
+            var_iter = tqdm(variables, desc=progress_desc or "CWT variables", unit="var")
+        except Exception:
+            var_iter = variables
+
+    for name in var_iter:
         y = np.asarray(ds[name].values, dtype=float)
         t_grid, freqs, coef_tf, power_tf, freq_coi = cwt_1d(
             t_sec, y, dt=dt, s0=s0, dj=dj, J=J,

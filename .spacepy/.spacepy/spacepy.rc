@@ -1,0 +1,18 @@
+#SpacePy 0.7.0 default enable_old_data_warning: True
+#enable_old_data_warning: True
+#SpacePy 0.7.0 default keepalive: True
+#keepalive: True
+#SpacePy 0.7.0 default leapsec_url: https://maia.usno.navy.mil/ser7/tai-utc.dat
+#leapsec_url: https://maia.usno.navy.mil/ser7/tai-utc.dat
+#SpacePy 0.7.0 default ncpus: 16
+#ncpus: 16
+#SpacePy 0.7.0 default omni2_url: https://spdf.gsfc.nasa.gov/pub/data/omni/omni_cdaweb/hourly/
+#omni2_url: https://spdf.gsfc.nasa.gov/pub/data/omni/omni_cdaweb/hourly/
+#SpacePy 0.7.0 default psddata_url: http://spacepy.lanl.gov/repository/psd_dat.sqlite
+#psddata_url: http://spacepy.lanl.gov/repository/psd_dat.sqlite
+#SpacePy 0.7.0 default qd_daily_url: https://rbsp-ect.newmexicoconsortium.org/data_pub/QinDenton/
+#qd_daily_url: https://rbsp-ect.newmexicoconsortium.org/data_pub/QinDenton/
+#SpacePy 0.7.0 default qindenton_url: http://virbo.org/ftp/QinDenton/hour/merged/latest/WGhour-latest.d.zip
+#qindenton_url: http://virbo.org/ftp/QinDenton/hour/merged/latest/WGhour-latest.d.zip
+#SpacePy 0.7.0 default support_notice: True
+#support_notice: True
