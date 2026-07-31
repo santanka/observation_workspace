@@ -157,14 +157,14 @@ def main(
 if __name__ == "__main__":
     out = main(
         root="/home/satanka/Documents/observation_workspace",
-        cache_dir="/mnt/j/observation_data/THEMIS_D_analysis_save_data/mc_cache",
-        fs=128.0,
-        n_points=45823,
-        J=413,
+        cache_dir="/mnt/j/observation_data/THEMIS_E_analysis_save_data/mc_cache",
+        fs=8.0,
+        n_points=39423,
+        J=407,
         n_iterations=1000,
         n_jobs=-1,
         block_f=32,
         batch_size=8,
         threads=1,
-        tag="seg2",
+        tag="seg1",
     )
