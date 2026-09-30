@@ -9,6 +9,7 @@ kernel process, records terminal status, and aggregates range/phase results.
 from __future__ import annotations
 
 import argparse
+import copy
 import contextlib
 import hashlib
 import json
@@ -19,6 +20,8 @@ import subprocess
 import sys
 import time
 import traceback
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -39,6 +42,22 @@ ANALYSIS_TIMEOUT_SEC = 24 * 3600
 DOWNLOAD_TIMEOUT_SEC = 15 * 60
 DOWNLOAD_RETRIES = 3
 RETRY_DELAYS_SEC = (30, 120, 300)
+DEFAULT_DOWNLOAD_WORKERS = 8
+POSTPASS_RETRIES = 2
+POSTPASS_RETRY_DELAYS_SEC = (60, 300)
+
+# The notebook is the analysis implementation, while this runner guarantees
+# that automated ranges are not processed with an older KAW-selection contract.
+REQUIRED_NOTEBOOK_ANALYSIS_MARKERS = (
+    "EB_SPIN_LOGRMSE_MAX_DEX = 0.75",
+    "EB_RESIDUAL_PEAK_MAX_DEX = 0.70",
+    "logrmse_E_spinband_kaw",
+    "n_E_spinband_kaw",
+    "_fit_e_spinband_rows(E, freq, coherency, wco_sig95, mask_fit)",
+    "_additional_eb_selection_mask(data_win)",
+    "_additional_eb_selection_mask(data_random)",
+    "_additional_eb_selection_mask(data)",
+)
 
 
 def utc_now() -> str:
@@ -217,6 +236,51 @@ def transform_notebook_source(
     }
     for old, new in replacements.items():
         source = source.replace(old, new)
+
+    # ATT is prefetched as daily text files. Load it from the local cache in
+    # each isolated kernel, then prevent erg_cotrans from calling att() again.
+    source = source.replace(
+        "def load_arase_position_dsi(time_range):\n"
+        "    ergpy.orb(trange=time_range, level='l2', datatype='def', no_update=True)",
+        "def load_arase_position_dsi(time_range):\n"
+        "    psp.projects.erg.att(\n"
+        "        trange=time_range, level='l2', no_update=True,\n"
+        "    )\n"
+        "    ergpy.orb(trange=time_range, level='l2', datatype='def', no_update=True)",
+        1,
+    )
+    source = source.replace(
+        "    pos_unit_gsm = pos_gsm / np.sqrt((pos_gsm * pos_gsm).sum(dim='v_dim'))\n\n"
+        "    psp.store_data(",
+        "    pos_unit_gsm = pos_gsm / np.sqrt((pos_gsm * pos_gsm).sum(dim='v_dim'))\n\n"
+        "    # noload=True also suppresses the Sun-vector preparation inside dsi2j2000.\n"
+        "    # Reproduce that preparation from the already cached ORB data first.\n"
+        "    pos_gse = get_tplot_da('erg_orb_l2_pos_gse').interp(time=pos_unit_gsm.time)\n"
+        "    sundir_gse = np.array([1.496e8, 0.0, 0.0]) - pos_gse.data\n"
+        "    sundir_gse /= np.linalg.norm(sundir_gse, axis=1, keepdims=True)\n"
+        "    psp.store_data(\n"
+        "        'sundir_gse',\n"
+        "        data={'x': pos_unit_gsm.time.values, 'y': sundir_gse},\n"
+        "    )\n"
+        "    psp.cotrans(\n"
+        "        name_in='sundir_gse',\n"
+        "        name_out='sundir_j2000',\n"
+        "        coord_in='gse',\n"
+        "        coord_out='j2000',\n"
+        "    )\n\n"
+        "    psp.store_data(",
+        1,
+    )
+    source = source.replace(
+        "        out_coord='dsi',\n"
+        "    )\n"
+        "    pos_unit_dsi = psp.get_data('Arase_pos_unit_dsi'",
+        "        out_coord='dsi',\n"
+        "        noload=True,\n"
+        "    )\n"
+        "    pos_unit_dsi = psp.get_data('Arase_pos_unit_dsi'",
+        1,
+    )
 
     # Permit HFA interpolation only when the native bracket is strictly below 5 min.
     old_function = """def interp_unique_time(da, time_base, method='linear'):
@@ -561,6 +625,10 @@ def execute_notebook_once(args: argparse.Namespace) -> int:
         "bootstrap_samples_path =",
         "PLOT_WAVELET_MEDIAN_PSD = False",
         "no_update=True",
+        "psp.projects.erg.att(",
+        "name_out='sundir_j2000'",
+        "noload=True",
+        *REQUIRED_NOTEBOOK_ANALYSIS_MARKERS,
     )
     missing = [marker for marker in required_transform_markers if marker not in transformed_source]
     if missing:
@@ -584,10 +652,120 @@ def execute_notebook_once(args: argparse.Namespace) -> int:
     return 0
 
 
+@dataclass(frozen=True)
+class ProductSpec:
+    cadence: str
+    pad_before: timedelta = timedelta(0)
+    pad_after: timedelta = timedelta(0)
+    max_block_units: int = 1
+
+
+@dataclass(frozen=True)
+class DownloadUnit:
+    product: str
+    key: str
+    start: datetime
+    end_exclusive: datetime
+    range_ids: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class DownloadBlock:
+    product: str
+    units: tuple[DownloadUnit, ...]
+    start: datetime
+    end_exclusive: datetime
+    range_ids: tuple[int, ...]
+
+    @property
+    def key(self) -> str:
+        first = self.units[0].key
+        last = self.units[-1].key
+        return first if first == last else f"{first}_to_{last}"
+
+    @property
+    def request_end(self) -> datetime:
+        # OMNIは月/半年fileの代表1日だけを要求し、同じremote名の大量列挙を避ける。
+        cadence = PRODUCT_SPECS[self.product].cadence
+        if cadence in {"month", "half_year"}:
+            return self.start + timedelta(days=1) - timedelta(seconds=1)
+        # Loaderのtrange終端で次のfile unitを拾わないよう、右端を1秒戻す。
+        return self.end_exclusive - timedelta(seconds=1)
+
+
+PRODUCT_SPECS: dict[str, ProductSpec] = {
+    "pwe_efd_l2_64": ProductSpec("day", max_block_units=7),
+    "mgf_l2_64hz": ProductSpec("hour", max_block_units=24),
+    "orb_l2_def": ProductSpec("day", max_block_units=7),
+    "att_l2": ProductSpec(
+        "day", pad_before=timedelta(seconds=60),
+        pad_after=timedelta(seconds=60), max_block_units=7,
+    ),
+    "lepe_l2_3dflux": ProductSpec("day", max_block_units=7),
+    "lepi_l2_3dflux": ProductSpec("day", max_block_units=7),
+    "pwe_hfa_l3": ProductSpec("day", max_block_units=7),
+    "pwe_hfa_l2": ProductSpec("day", max_block_units=7),
+    "omni_1min": ProductSpec(
+        "month", pad_before=timedelta(hours=3),
+        pad_after=timedelta(hours=3), max_block_units=1,
+    ),
+    "omni_hourly": ProductSpec(
+        "half_year", pad_before=timedelta(hours=3),
+        pad_after=timedelta(hours=3), max_block_units=1,
+    ),
+}
+PRODUCTS = tuple(PRODUCT_SPECS)
+
+
+def _parse_time(value: Any) -> datetime:
+    return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+
+
+def _floor_unit(value: datetime, cadence: str) -> datetime:
+    if cadence == "hour":
+        return value.replace(minute=0, second=0, microsecond=0)
+    if cadence == "day":
+        return value.replace(hour=0, minute=0, second=0, microsecond=0)
+    if cadence == "month":
+        return value.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if cadence == "half_year":
+        month = 1 if value.month <= 6 else 7
+        return value.replace(month=month, day=1, hour=0, minute=0, second=0, microsecond=0)
+    raise ValueError(f"Unknown cadence: {cadence}")
+
+
+def _next_unit(value: datetime, cadence: str) -> datetime:
+    if cadence == "hour":
+        return value + timedelta(hours=1)
+    if cadence == "day":
+        return value + timedelta(days=1)
+    if cadence == "month":
+        if value.month == 12:
+            return value.replace(year=value.year + 1, month=1)
+        return value.replace(month=value.month + 1)
+    if cadence == "half_year":
+        if value.month == 1:
+            return value.replace(month=7)
+        return value.replace(year=value.year + 1, month=1)
+    raise ValueError(f"Unknown cadence: {cadence}")
+
+
+def _unit_key(value: datetime, cadence: str) -> str:
+    if cadence == "hour":
+        return value.strftime("%Y%m%dT%H")
+    if cadence == "day":
+        return value.strftime("%Y%m%d")
+    if cadence == "month":
+        return value.strftime("%Y%m")
+    if cadence == "half_year":
+        return f"{value.year:04d}H{1 if value.month == 1 else 2}"
+    raise ValueError(f"Unknown cadence: {cadence}")
+
+
 def download_tranges(start_text: str, end_text: str) -> dict[str, list[str]]:
-    """Return the smallest request interval used by each product."""
-    start = datetime.fromisoformat(start_text.replace("Z", "+00:00"))
-    end = datetime.fromisoformat(end_text.replace("Z", "+00:00"))
+    """Return the legacy per-range request intervals used by each product."""
+    start = _parse_time(start_text)
+    end = _parse_time(end_text)
     exact = [start.isoformat(), end.isoformat()]
     geomag_start = start - timedelta(hours=3)
     geomag_end = end + timedelta(hours=3)
@@ -600,15 +778,197 @@ def download_tranges(start_text: str, end_text: str) -> dict[str, list[str]]:
     return {"exact": exact, "omni_1min": geomag, "omni_hourly": hourly}
 
 
+def build_download_units(
+    ranges: list[dict[str, Any]], product: str
+) -> list[DownloadUnit]:
+    """Map all selected ranges to unique physical file units for one product."""
+    if product not in PRODUCT_SPECS:
+        raise ValueError(f"Unknown product: {product}")
+    spec = PRODUCT_SPECS[product]
+    unit_ranges: dict[datetime, set[int]] = {}
+
+    for item in ranges:
+        range_id = int(item["range_id"])
+        start = _parse_time(item["start_time"]) - spec.pad_before
+        end = _parse_time(item["end_time"]) + spec.pad_after
+        if start >= end:
+            raise ValueError(f"Non-increasing padded range_id={range_id}")
+
+        cursor = _floor_unit(start, spec.cadence)
+        final_unit = _floor_unit(end - timedelta(microseconds=1), spec.cadence)
+        while cursor <= final_unit:
+            unit_ranges.setdefault(cursor, set()).add(range_id)
+            cursor = _next_unit(cursor, spec.cadence)
+
+    return [
+        DownloadUnit(
+            product=product,
+            key=_unit_key(start, spec.cadence),
+            start=start,
+            end_exclusive=_next_unit(start, spec.cadence),
+            range_ids=tuple(sorted(unit_ranges[start])),
+        )
+        for start in sorted(unit_ranges)
+    ]
+
+
+def block_download_units(
+    units: list[DownloadUnit], max_block_units: int | None = None
+) -> list[DownloadBlock]:
+    """Merge consecutive file units while retaining bounded retry granularity."""
+    if not units:
+        return []
+    products = {unit.product for unit in units}
+    if len(products) != 1:
+        raise ValueError("A download block cannot mix products")
+    product = units[0].product
+    if max_block_units is None:
+        max_block_units = PRODUCT_SPECS[product].max_block_units
+    max_block_units = int(max_block_units)
+    if max_block_units < 1:
+        raise ValueError("max_block_units must be >= 1")
+
+    blocks: list[DownloadBlock] = []
+    current: list[DownloadUnit] = []
+
+    def append_current() -> None:
+        if not current:
+            return
+        range_ids = sorted({rid for unit in current for rid in unit.range_ids})
+        blocks.append(DownloadBlock(
+            product=product,
+            units=tuple(current),
+            start=current[0].start,
+            end_exclusive=current[-1].end_exclusive,
+            range_ids=tuple(range_ids),
+        ))
+
+    for unit in sorted(units, key=lambda value: value.start):
+        is_consecutive = bool(current) and current[-1].end_exclusive == unit.start
+        if current and (not is_consecutive or len(current) >= max_block_units):
+            append_current()
+            current = []
+        current.append(unit)
+    append_current()
+    return blocks
+
+
+def build_download_plan(ranges: list[dict[str, Any]]) -> list[DownloadBlock]:
+    plan: list[DownloadBlock] = []
+    for product in PRODUCTS:
+        plan.extend(block_download_units(build_download_units(ranges, product)))
+    return plan
+
+
+def download_unit_marker(state_dir: Path, unit: DownloadUnit) -> Path:
+    return state_dir / "downloads" / unit.product / f"{unit.key}.json"
+
+
+def compatible_download_unit(marker: Path, unit: DownloadUnit) -> bool:
+    if not marker.is_file():
+        return False
+    try:
+        prior = json.loads(marker.read_text())
+    except Exception:
+        return False
+    files = prior.get("files")
+    return (
+        prior.get("status") == "complete"
+        and prior.get("product") == unit.product
+        and prior.get("unit_key") == unit.key
+        and prior.get("unit_start") == unit.start.isoformat()
+        and prior.get("unit_end_exclusive") == unit.end_exclusive.isoformat()
+        and isinstance(files, list)
+        and bool(files)
+        and all(Path(path).is_file() for path in files)
+    )
+
+
+def known_missing_download_unit(marker: Path, unit: DownloadUnit) -> bool:
+    if not marker.is_file():
+        return False
+    try:
+        prior = json.loads(marker.read_text())
+    except Exception:
+        return False
+    return (
+        prior.get("status") == "missing_remote"
+        and prior.get("product") == unit.product
+        and prior.get("unit_key") == unit.key
+        and prior.get("unit_start") == unit.start.isoformat()
+        and prior.get("unit_end_exclusive") == unit.end_exclusive.isoformat()
+    )
+
+
+def _normalize_download_files(result: Any) -> list[str]:
+    if result is None:
+        return []
+    if isinstance(result, (str, Path)):
+        values = [result]
+    elif hasattr(result, "tolist"):
+        values = result.tolist()
+    else:
+        values = list(result)
+    return [str(value) for value in values if str(value)]
+
+
+def _files_for_unit(files: list[str], unit: DownloadUnit) -> list[str]:
+    """Select files whose filename contains this physical unit's time token."""
+    cadence = PRODUCT_SPECS[unit.product].cadence
+    if cadence == "hour":
+        token = unit.start.strftime("%Y%m%d%H")
+    elif cadence == "day":
+        token = unit.start.strftime("%Y%m%d")
+    elif cadence in {"month", "half_year"}:
+        token = unit.start.strftime("%Y%m01")
+    else:
+        raise ValueError(f"Unknown cadence: {cadence}")
+    return [path for path in files if token in Path(path).name]
+
+
+def _product_request_trange(product: str, start: str, end: str) -> list[str]:
+    # pyspedas OMNI hourly delegates to yearlynames(), which only accepts dates.
+    if product == "omni_hourly":
+        return [
+            _parse_time(start).strftime("%Y-%m-%d"),
+            _parse_time(end).strftime("%Y-%m-%d"),
+        ]
+    return [start, end]
+
+
+def _att_files_cover_trange(files: list[str], start: str, end: str) -> bool:
+    """Return True when local ATT filenames cover every requested UTC day."""
+    cursor = _floor_unit(_parse_time(start), "day")
+    final = _floor_unit(_parse_time(end), "day")
+    filenames = [Path(path).name for path in files]
+    while cursor <= final:
+        token = cursor.strftime("%Y%m%d")
+        if not any(token in filename for filename in filenames):
+            return False
+        cursor = _next_unit(cursor, "day")
+    return True
+
+
 def prefetch_one(args: argparse.Namespace) -> int:
     os.environ["SPEDAS_DATA_DIR"] = str(Path(args.spedas_dir))
     os.environ.setdefault("MPLCONFIGDIR", str(ROOT / ".mplconfig"))
     import ergpyspedas.erg as ergpy
     import pyspedas as psp
 
-    tranges = download_tranges(args.start, args.end)
-    trange = tranges["exact"]
     product = args.product
+    trange = _product_request_trange(product, args.start, args.end)
+
+    def prefetch_att() -> list[str]:
+        local_files = _normalize_download_files(psp.projects.erg.att(
+            trange=trange, level="l2", downloadonly=True, no_update=True,
+        ))
+        if _att_files_cover_trange(local_files, args.start, args.end):
+            return local_files
+        downloaded = _normalize_download_files(psp.projects.erg.att(
+            trange=trange, level="l2", downloadonly=True,
+        ))
+        return list(dict.fromkeys(local_files + downloaded))
+
     calls = {
         "pwe_efd_l2_64": lambda: ergpy.pwe_efd(
             trange=trange, level="l2", datatype="64", coord="dsi",
@@ -621,6 +981,7 @@ def prefetch_one(args: argparse.Namespace) -> int:
         "orb_l2_def": lambda: ergpy.orb(
             trange=trange, level="l2", datatype="def", downloadonly=True,
         ),
+        "att_l2": prefetch_att,
         "lepe_l2_3dflux": lambda: ergpy.lepe(
             trange=trange, datatype="3dflux", level="l2", downloadonly=True,
         ),
@@ -634,28 +995,128 @@ def prefetch_one(args: argparse.Namespace) -> int:
             trange=trange, level="l2", downloadonly=True,
         ),
         "omni_1min": lambda: psp.projects.omni.data(
-            trange=tranges["omni_1min"], datatype="1min", downloadonly=True,
+            trange=trange, datatype="1min", downloadonly=True,
         ),
         "omni_hourly": lambda: psp.projects.omni.data(
-            trange=tranges["omni_hourly"], datatype="hourly", downloadonly=True,
+            trange=trange, datatype="hourly", downloadonly=True,
         ),
     }
     if product not in calls:
         raise ValueError(f"Unknown product: {product}")
-    result = calls[product]()
-    if result is None or (hasattr(result, "__len__") and len(result) == 0):
+    files = _normalize_download_files(calls[product]())
+    if not files:
         raise RuntimeError(
             f"No downloaded/local files returned for {product} "
             f"{args.start} -- {args.end}"
         )
-    print(result)
+    missing = [path for path in files if not Path(path).is_file()]
+    if missing:
+        raise RuntimeError(f"Downloader returned missing local files: {missing}")
+    result = {
+        "status": "complete", "product": product,
+        "start_time": args.start, "end_time": args.end,
+        "files": files, "finished_at": utc_now(),
+    }
+    if args.result_json:
+        atomic_json(Path(args.result_json), result)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
 
-PRODUCTS = (
-    "pwe_efd_l2_64", "mgf_l2_64hz", "orb_l2_def", "lepe_l2_3dflux",
-    "lepi_l2_3dflux", "pwe_hfa_l3", "pwe_hfa_l2", "omni_1min", "omni_hourly",
-)
+def _write_unit_status(
+    state_dir: Path,
+    unit: DownloadUnit,
+    status: str,
+    block: DownloadBlock,
+    **extra: Any,
+) -> None:
+    atomic_json(download_unit_marker(state_dir, unit), {
+        "status": status,
+        "product": unit.product,
+        "unit_key": unit.key,
+        "unit_start": unit.start.isoformat(),
+        "unit_end_exclusive": unit.end_exclusive.isoformat(),
+        "range_ids": list(unit.range_ids),
+        "block_key": block.key,
+        **extra,
+    })
+
+
+def _run_prefetch_block(
+    args: argparse.Namespace,
+    block: DownloadBlock,
+    state_dir: Path,
+    env: dict[str, str],
+) -> tuple[DownloadBlock, tuple[DownloadUnit, ...]]:
+    block_dir = state_dir / "downloads" / "_blocks" / block.product
+    log_path = state_dir / "logs" / "downloads" / block.product / f"{block.key}.log"
+
+    for attempt in range(1, DOWNLOAD_RETRIES + 1):
+        started_at = utc_now()
+        for unit in block.units:
+            _write_unit_status(
+                state_dir, unit, "running", block,
+                attempt=attempt, started_at=started_at,
+            )
+
+        result_path = block_dir / f"{block.key}_attempt_{attempt}.json"
+        command = [
+            sys.executable, str(Path(__file__).resolve()), "_prefetch-one",
+            "--start", block.start.isoformat(),
+            "--end", block.request_end.isoformat(),
+            "--product", block.product,
+            "--spedas-dir", str(args.spedas_dir),
+            "--result-json", str(result_path),
+        ]
+        code = run_child(command, log_path, args.download_timeout, env)
+        files: list[str] = []
+        unit_files: dict[str, list[str]] = {}
+        if code == 0 and result_path.is_file():
+            try:
+                result = json.loads(result_path.read_text())
+                files = [str(path) for path in result.get("files", [])]
+                if not files or not all(Path(path).is_file() for path in files):
+                    code = 1
+                else:
+                    unit_files = {
+                        unit.key: _files_for_unit(files, unit) for unit in block.units
+                    }
+            except Exception:
+                code = 1
+
+        finished_at = utc_now()
+        if code == 0:
+            missing_units = tuple(
+                unit for unit in block.units if not unit_files[unit.key]
+            )
+            for unit in block.units:
+                matched = unit_files[unit.key]
+                if matched:
+                    _write_unit_status(
+                        state_dir, unit, "complete", block,
+                        attempt=attempt, started_at=started_at,
+                        finished_at=finished_at, files=matched,
+                    )
+                else:
+                    _write_unit_status(
+                        state_dir, unit, "missing_remote", block,
+                        attempt=attempt, started_at=started_at,
+                        finished_at=finished_at, files=[],
+                        reason="No CDF returned for this physical file unit",
+                    )
+            return block, missing_units
+
+        status = "timeout" if code == 124 else "failed"
+        for unit in block.units:
+            _write_unit_status(
+                state_dir, unit, status, block,
+                attempt=attempt, started_at=started_at,
+                finished_at=finished_at, returncode=code, files=files,
+            )
+        if attempt < DOWNLOAD_RETRIES:
+            time.sleep(RETRY_DELAYS_SEC[attempt - 1])
+
+    return block, block.units
 
 
 def run_prefetch(args: argparse.Namespace, ranges: list[dict[str, Any]]) -> set[int]:
@@ -663,68 +1124,152 @@ def run_prefetch(args: argparse.Namespace, ranges: list[dict[str, Any]]) -> set[
     env["SPEDAS_DATA_DIR"] = str(args.spedas_dir)
     env.setdefault("MPLCONFIGDIR", str(ROOT / ".mplconfig"))
     state_dir = Path(args.state_dir)
-    failed_ranges: set[int] = set()
-    for item in ranges:
-        range_id = int(item["range_id"])
-        start_text = str(item["start_time"])
-        end_text = str(item["end_time"])
-        for product in PRODUCTS:
-            marker = state_dir / "downloads" / f"range_{range_id:03d}" / f"{product}.json"
-            if marker.exists() and not args.force:
-                try:
-                    prior = json.loads(marker.read_text())
-                    if (
-                        prior.get("status") == "complete"
-                        and prior.get("start_time") == start_text
-                        and prior.get("end_time") == end_text
-                        and prior.get("product") == product
-                    ):
-                        continue
-                except Exception:
-                    pass
-            success = False
-            for attempt in range(1, DOWNLOAD_RETRIES + 1):
-                atomic_json(marker, {
-                    "status": "running", "range_id": range_id,
-                    "start_time": start_text, "end_time": end_text,
-                    "product": product,
-                    "attempt": attempt, "started_at": utc_now(),
-                })
-                command = [
-                    sys.executable, str(Path(__file__).resolve()), "_prefetch-one",
-                    "--start", start_text, "--end", end_text, "--product", product,
-                    "--spedas-dir", str(args.spedas_dir),
-                ]
-                code = run_child(
-                    command,
-                    state_dir / "logs" / "downloads" / f"range_{range_id:03d}" / f"{product}.log",
-                    args.download_timeout,
-                    env,
-                )
-                if code == 0:
-                    atomic_json(marker, {
-                        "status": "complete", "range_id": range_id,
-                        "start_time": start_text, "end_time": end_text,
-                        "product": product,
-                        "attempt": attempt, "finished_at": utc_now(),
-                    })
-                    success = True
-                    break
-                atomic_json(marker, {
-                    "status": "timeout" if code == 124 else "failed",
-                    "range_id": range_id, "start_time": start_text,
-                    "end_time": end_text, "product": product, "attempt": attempt,
-                    "returncode": code, "finished_at": utc_now(),
-                })
-                if attempt < DOWNLOAD_RETRIES:
-                    time.sleep(RETRY_DELAYS_SEC[attempt - 1])
-            if not success:
-                failed_ranges.add(range_id)
+
+    total_units = 0
+    completed_units = 0
+    known_missing_units: list[DownloadUnit] = []
+    pending_blocks: list[DownloadBlock] = []
+    for product in PRODUCTS:
+        units = build_download_units(ranges, product)
+        total_units += len(units)
+        pending_units = []
+        for unit in units:
+            marker = download_unit_marker(state_dir, unit)
+            if not args.force and compatible_download_unit(marker, unit):
+                completed_units += 1
+            elif not args.force and known_missing_download_unit(marker, unit):
+                known_missing_units.append(unit)
+            else:
+                pending_units.append(unit)
+        pending_blocks.extend(block_download_units(pending_units))
+
+    print(f"prefetch ranges          : {len(ranges)}")
+    print(f"prefetch unique units    : {total_units}")
+    print(f"prefetch cached units    : {completed_units}")
+    print(f"prefetch known missing   : {len(known_missing_units)}")
+    print(f"prefetch pending blocks  : {len(pending_blocks)}")
+
+    failed_ranges = {
+        range_id
+        for unit in known_missing_units
+        for range_id in unit.range_ids
+    }
+    if not pending_blocks:
+        return failed_ranges
+
+    worker_count = max(1, min(int(args.download_workers), len(pending_blocks)))
+    print(f"prefetch download workers: {worker_count}")
+
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        futures = {
+            executor.submit(_run_prefetch_block, args, block, state_dir, env): block
+            for block in pending_blocks
+        }
+        for future in as_completed(futures):
+            block = futures[future]
+            try:
+                _, failed_units = future.result()
+            except Exception as exc:
+                failed_units = block.units
+                traceback.print_exc()
+                for unit in block.units:
+                    _write_unit_status(
+                        state_dir, unit, "failed", block,
+                        finished_at=utc_now(), error=repr(exc), files=[],
+                    )
+            if not failed_units:
                 print(
-                    f"Prefetch failed after retries: range {range_id} {product}",
+                    f"prefetch complete: {block.product} {block.key} "
+                    f"({len(block.units)} units)"
+                )
+            else:
+                failed_ranges.update(
+                    range_id
+                    for unit in failed_units
+                    for range_id in unit.range_ids
+                )
+                print(
+                    f"Prefetch incomplete: {block.product} {block.key}; "
+                    f"missing/failed units: {[unit.key for unit in failed_units]}",
                     file=sys.stderr,
                 )
     return failed_ranges
+
+
+ATT_NETWORK_SIGNATURES = (
+    "Connection error getting remote index",
+    "ReadTimeoutError",
+    "ConnectTimeoutError",
+    "ConnectionError",
+    "RemoteDisconnected",
+    "NameResolutionError",
+    "Temporary failure in name resolution",
+    "SSLError",
+)
+
+
+def classify_range_failure(log_text: str, returncode: int) -> tuple[str, bool]:
+    """Classify a failed range without treating scientific data gaps as retryable."""
+    att_context = "/erg/att/txt/" in log_text or "erg_interpolate_att" in log_text
+    att_network_error = att_context and any(
+        signature in log_text for signature in ATT_NETWORK_SIGNATURES
+    )
+    if att_network_error:
+        return "att_download_transient", True
+    if returncode == 124:
+        return "analysis_timeout", False
+    if att_context and "No objects to concatenate" in log_text:
+        return "att_data_unavailable", False
+    if "No overlapping E64/B64 DSI segments" in log_text:
+        return "no_overlapping_efd_mgf_waveform", False
+    if "No EB64 segment survived DSI to FAC rotation" in log_text:
+        return "no_valid_fac_segment", False
+    if "zero-size array" in log_text:
+        return "empty_input_data", False
+    return "analysis_error", False
+
+
+def _log_text_since(path: Path, offset: int) -> str:
+    if not path.is_file():
+        return ""
+    return path.read_bytes()[offset:].decode("utf-8", errors="replace")
+
+
+def retryable_analysis_ranges(
+    state_dir: Path, ranges: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    selected = []
+    for item in ranges:
+        marker = status_path(state_dir, item)
+        if not marker.is_file():
+            continue
+        try:
+            status = json.loads(marker.read_text())
+        except Exception:
+            continue
+        if status.get("status") in {"failed", "timeout"} and status.get("retryable") is True:
+            selected.append(item)
+    return selected
+
+
+def retryable_download_range_ids(
+    state_dir: Path, ranges: list[dict[str, Any]]
+) -> set[int]:
+    """Return ranges backed by failed/timeout units; missing_remote is terminal."""
+    selected_ids = {int(item["range_id"]) for item in ranges}
+    retryable_ids: set[int] = set()
+    for product in PRODUCTS:
+        for unit in build_download_units(ranges, product):
+            marker = download_unit_marker(state_dir, unit)
+            if not marker.is_file():
+                continue
+            try:
+                status = json.loads(marker.read_text()).get("status")
+            except Exception:
+                continue
+            if status in {"failed", "timeout"}:
+                retryable_ids.update(selected_ids.intersection(unit.range_ids))
+    return retryable_ids
 
 
 def run_ranges(args: argparse.Namespace, ranges: list[dict[str, Any]], ranges_hash: str) -> None:
@@ -739,18 +1284,21 @@ def run_ranges(args: argparse.Namespace, ranges: list[dict[str, Any]], ranges_ha
 
     for item in ranges:
         marker = status_path(state_dir, item)
-        if marker.exists() and not args.force:
+        prior_status: dict[str, Any] = {}
+        if marker.exists():
             try:
-                if compatible_complete(
-                    json.loads(marker.read_text()), notebook_hash, ranges_hash, runner_hash
+                prior_status = json.loads(marker.read_text())
+                if not args.force and compatible_complete(
+                    prior_status, notebook_hash, ranges_hash, runner_hash
                 ):
                     print(f"skip complete range {item['range_id']}")
                     continue
             except Exception:
-                pass
+                prior_status = {}
 
         summary = expected_summary(item, Path(args.output_root))
         started = time.monotonic()
+        attempt = int(prior_status.get("attempt", 0)) + 1
         base_status = {
             "range_id": int(item["range_id"]),
             "start_time": item["start_time"],
@@ -759,6 +1307,7 @@ def run_ranges(args: argparse.Namespace, ranges: list[dict[str, Any]], ranges_ha
             "ranges_sha256": ranges_hash,
             "runner_sha256": runner_hash,
             "summary_path": str(summary),
+            "attempt": attempt,
             "started_at": utc_now(),
         }
         atomic_json(marker, {**base_status, "status": "running"})
@@ -769,24 +1318,80 @@ def run_ranges(args: argparse.Namespace, ranges: list[dict[str, Any]], ranges_ha
             "--output-root", str(args.output_root),
             "--spedas-dir", str(args.spedas_dir), "--kernel-name", args.kernel_name,
         ]
-        code = run_child(
-            command,
-            state_dir / "logs" / "ranges" / f"range_{int(item['range_id']):03d}.log",
-            args.analysis_timeout,
-            env,
-        )
+        log_path = state_dir / "logs" / "ranges" / f"range_{int(item['range_id']):03d}.log"
+        log_offset = log_path.stat().st_size if log_path.is_file() else 0
+        code = run_child(command, log_path, args.analysis_timeout, env)
         elapsed = time.monotonic() - started
+        terminal = {
+            **base_status, "returncode": code,
+            "elapsed_sec": elapsed, "finished_at": utc_now(),
+        }
         if code == 0 and summary.is_file():
             state = "complete"
-        elif code == 124:
-            state = "timeout"
+            terminal.update(status=state, retryable=False)
         else:
-            state = "failed"
-        atomic_json(marker, {
-            **base_status, "status": state, "returncode": code,
-            "elapsed_sec": elapsed, "finished_at": utc_now(),
-        })
-        print(f"range {item['range_id']}: {state} ({elapsed / 60:.1f} min)")
+            state = "timeout" if code == 124 else "failed"
+            failure_class, retryable = classify_range_failure(
+                _log_text_since(log_path, log_offset), code
+            )
+            terminal.update(
+                status=state, failure_class=failure_class, retryable=retryable
+            )
+        atomic_json(marker, terminal)
+        suffix = (
+            f", {terminal['failure_class']}, retryable={terminal['retryable']}"
+            if state != "complete" else ""
+        )
+        print(
+            f"range {item['range_id']}: {state} "
+            f"(attempt {attempt}, {elapsed / 60:.1f} min{suffix})"
+        )
+
+
+
+def run_postpass_retries(
+    args: argparse.Namespace, ranges: list[dict[str, Any]], ranges_hash: str
+) -> None:
+    """Retry transient download units and classified transient range failures."""
+    max_rounds = max(0, int(args.postpass_retries))
+    by_id = {int(item["range_id"]): item for item in ranges}
+
+    for retry_round in range(1, max_rounds + 1):
+        analysis_items = retryable_analysis_ranges(Path(args.state_dir), ranges)
+        analysis_ids = {int(item["range_id"]) for item in analysis_items}
+        download_ids = retryable_download_range_ids(Path(args.state_dir), ranges)
+        candidate_ids = analysis_ids | download_ids
+        if not candidate_ids:
+            return
+
+        delay_index = min(retry_round - 1, len(POSTPASS_RETRY_DELAYS_SEC) - 1)
+        delay = POSTPASS_RETRY_DELAYS_SEC[delay_index]
+        print(
+            f"postpass retry round {retry_round}/{max_rounds}: "
+            f"download_ranges={sorted(download_ids)}, "
+            f"analysis_ranges={sorted(analysis_ids)}, wait={delay}s"
+        )
+        time.sleep(delay)
+
+        if download_ids:
+            download_items = [by_id[range_id] for range_id in sorted(download_ids)]
+            retry_args = copy.copy(args)
+            retry_args.force = False
+            still_failed = run_prefetch(retry_args, download_items)
+            ready_ids = download_ids - still_failed
+            if ready_ids:
+                run_ranges(
+                    args, [by_id[range_id] for range_id in sorted(ready_ids)], ranges_hash
+                )
+
+        # Do not run a range whose required download unit is still unresolved.
+        direct_analysis_ids = analysis_ids - download_ids
+        if direct_analysis_ids:
+            run_ranges(
+                args,
+                [by_id[range_id] for range_id in sorted(direct_analysis_ids)],
+                ranges_hash,
+            )
 
 
 def aggregate(args: argparse.Namespace, ranges: list[dict[str, Any]]) -> None:
@@ -866,11 +1471,17 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--kernel-name", default="python3")
     run.add_argument("--skip-prefetch", action="store_true")
     run.add_argument("--download-timeout", type=int, default=DOWNLOAD_TIMEOUT_SEC)
+    run.add_argument("--download-workers", type=int, default=DEFAULT_DOWNLOAD_WORKERS)
     run.add_argument("--analysis-timeout", type=int, default=ANALYSIS_TIMEOUT_SEC)
+    run.add_argument(
+        "--postpass-retries", type=int, default=POSTPASS_RETRIES,
+        help="Retry transient download/ATT failures after the first full pass",
+    )
 
-    prefetch = sub.add_parser("prefetch", help="Download required daily products")
+    prefetch = sub.add_parser("prefetch", help="Download required product file units")
     common(prefetch)
     prefetch.add_argument("--download-timeout", type=int, default=DOWNLOAD_TIMEOUT_SEC)
+    prefetch.add_argument("--download-workers", type=int, default=DEFAULT_DOWNLOAD_WORKERS)
 
     agg = sub.add_parser("aggregate", help="Rebuild master tables")
     common(agg)
@@ -888,6 +1499,7 @@ def build_parser() -> argparse.ArgumentParser:
     download.add_argument("--end", required=True)
     download.add_argument("--product", required=True)
     download.add_argument("--spedas-dir", required=True)
+    download.add_argument("--result-json")
     return parser
 
 
@@ -930,6 +1542,7 @@ def main() -> int:
                         "finished_at": utc_now(),
                     })
         run_ranges(args, runnable_ranges, ranges_hash)
+        run_postpass_retries(args, ranges, ranges_hash)
         # A partial run must not replace the master tables with only that subset.
         # Rebuild them from every range whose output is currently available.
         aggregate(args, all_ranges)

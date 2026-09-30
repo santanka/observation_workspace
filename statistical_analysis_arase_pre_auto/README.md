@@ -9,13 +9,19 @@
 - component: toroidal
 - phase: north traveling / south traveling / standing / all
 - 最低データ量: 共通E/B fit-valid sampleが64以上
-- 時間方向の最低分布: occupied 10秒blockが20以上
+- 時間方向の最低分布: occupied 10秒blockが6以上
 - HFA数密度: quality flag `< 1` かつ有限値のみ
 - HFA線形補間: 有効native sample間隔が5分未満の場合のみ。5分以上は補間しない
 - 数密度依存量: HFA数密度から計算した値のみを統計出力に使用
+- 電場スピン帯域判定: 0.8--6倍スピン周波数、coherence有効、かつKAW解析波数範囲内の点だけで`logrmse_E_spinband_kaw`を計算
+- 電場スピン帯域閾値: 有効点10以上では`logrmse_E_spinband_kaw <= 0.75 dex`。10点未満は適用対象外として通過し、点数自体の欠損は除外
+- 局所E/B残差: 縦オフセット補正後の`EB_residual_peak <= 0.70 dex`
+- `logrmse_EB_shape`: 計算・保存のみ。KAW選定には使用しない
 - plot: 元Notebookの設定を維持。ただしmedian PSDだけ無効
 - `PLOT_EB_EACHTIME_FIGURES=False` は元Notebookどおり維持
 - random spectrum: 元Notebookどおり最大50枚/range
+
+batch workerは上記の列名・閾値・KAW波数mask・3か所の選定maskがNotebookに存在することを実行前に確認する。条件が欠けた古いNotebookを`--notebook`で指定した場合は、range解析を開始せずエラーにする。
 
 ## 追加出力
 
@@ -46,9 +52,10 @@ master tableには、このrunnerが `complete` と記録したrangeだけを含
 
 ```text
 KAW_observation/run_state/<dataset key>/
-  downloads/range_<id>/<product>.json
+  downloads/<product>/<file-unit>.json
+  downloads/_blocks/<product>/<block>_attempt_<n>.json
   ranges/range_<id>.json
-  logs/downloads/...
+  logs/downloads/<product>/<block>.log
   logs/ranges/...
   aggregate/range_status.csv
   aggregate/arase_phase_master.csv
@@ -93,8 +100,13 @@ download済みデータだけを使う場合:
 事前downloadのみ:
 
 ```bash
-.venv_pyspedas/bin/python statistical_analysis_arase_pre_auto/batch_arase.py prefetch
+.venv_pyspedas/bin/python statistical_analysis_arase_pre_auto/batch_arase.py prefetch \
+  --download-workers 2
 ```
+
+既定では全rangeの一周後に、一時的なdownload失敗とATT通信失敗だけを最大2回再試行する。
+待機時間は60秒、300秒である。postpass retryを無効化する場合は
+`--postpass-retries 0`を指定する。
 
 集約のみ:
 
@@ -158,22 +170,123 @@ JSONには`--ranges`を使い、masterや出力先を直接指定する場合は
 `--force` を付けると完了markerを無視して再実行する。wavelet cache自体の上書き設定は
 元Notebookの `WAVELET_OVERWRITE=False` を維持する。
 
-## 障害分離
+## KAW occurrence probability図
 
-- downloadはrange別・product別のprocessで実行する
-- EFD/MGF/orbit/LEP/HFAは各rangeの開始・終了時刻をそのまま指定する
-- OMNI 1minはgeomagnetic-index処理に必要なrange前後3時間を取得する
-- OMNI hourlyはその拡張区間を含む日付範囲を取得する
-- 既定timeoutは15分、最大3回retryする
+rangeの代表位置をbin分けし、L--MLAT面とL--MLT面について、対象期間全体のArase
+dwelling time、KAW observation time、occurrence probabilityの3 panel図を作成する。
+L--MLATは双極子磁力線形状へ写像し、両座標系とも中央に昼夜を示す地球を描く。
+L--MLATの分母・分子はともに18--06 MLTのnightsideだけを使用する。
+
+```bash
+.venv_pyspedas/bin/python \
+  statistical_analysis_arase_pre_auto/plot_occurrence_probability.py
+```
+
+既定ではall、north traveling、south traveling、standingの4 phaseを個別に出力する。
+allだけを作成する場合:
+
+```bash
+.venv_pyspedas/bin/python \
+  statistical_analysis_arase_pre_auto/plot_occurrence_probability.py \
+  --phase all
+```
+
+対象期間のORB L2日次fileを確認し、local cacheにない日だけ最大3回downloadする。
+接続不良時は待機して再試行し、全日が揃わない場合は部分的なdwelling timeで図を作らず
+停止する。local dataだけを使う場合は`--no-download`、ORB cacheを再構築する場合は
+`--refresh-dwelling-cache`を指定する。
+
+出力先は`KAW_observation/auto/<dataset key>/occurrence_probability/`で、各図のPNG、
+PDF、各binの時間・確率・range数を含むCSV、再利用用ORB dwelling cacheを保存する。
+確率の分母・分子、代表位置、
+bin境界、coverage maskの定義は
+[`OCCURRENCE_PROBABILITY.md`](OCCURRENCE_PROBABILITY.md)に記載する。bin幅、表示範囲、
+log/linear scale、colormap、minimum dwelling durationは`plot_occurrence_probability.py`冒頭の
+`PLOT_CONFIG`で変更できる。
+## κ・X0空間統計図
+
+`status == "ok"`のrangeを代表位置でbin分けし、κと`log10(X0)`のmedianを
+L--MLAT面およびL--MLT面へ描く。各図はE、B、Sの3 panelで、L--MLATは18--06 MLTに
+限定する。これらに加え、上段を`log10(X0)`、下段をκとした(a)--(f)の2行3列統合図も
+出力する。統合図の各panelには、表示binに属するrange全体の
+`median [q16, q84], N`を示す。
+
+```bash
+.venv_pyspedas/bin/python \
+  statistical_analysis_arase_pre_auto/plot_kappa_x0_statistics.py
+```
+
+既定ではn > 0の全binを表示する。表示に必要なrange数は
+`plot_kappa_x0_statistics.py`冒頭の`PLOT_CONFIG["min_bin_count"]`で変更できる。
+mean、std、median、q16、q84、min、max、nを含むCSVも保存する。詳細な定義は
+[`KAPPA_X0_STATISTICS.md`](KAPPA_X0_STATISTICS.md)に記載する。カラーバーは6パラメータ
+別に表示bin中央値のq5--q95を使い、`PLOT_CONFIG["color_percentiles"]`で変更できる。
+
+## AE指数に対するκ・X0統計図
+
+`status == "ok"`の各rangeについて、range中のAE中央値に対するκと`log10(X0)`を描く。
+各phaseを2行3列の図として出力し、raw range点に加えてAE bin内のmedian、q16--q84、
+range数を示す。
+
+```bash
+.venv_pyspedas/bin/python \
+  statistical_analysis_arase_pre_auto/plot_ae_parameter_statistics.py
+```
+
+既定のAE bin幅は200 nT、表示条件はn > 0、対象は全MLTである。bin幅、最小range数、
+夜側限定などは`plot_ae_parameter_statistics.py`冒頭の`PLOT_CONFIG`で変更できる。
+定義と注意点は[`AE_PARAMETER_STATISTICS.md`](AE_PARAMETER_STATISTICS.md)に記載する。
+
+
+
+## Download plan・障害分離
+
+prefetchはrangeごとには実行しない。選択した全rangeを、配布CDFの物理的な
+ファイル時間単位へ変換してから重複を除去し、連続unitをblock化する。
+
+| product | file unit | 1 blockの上限 |
+|---|---:|---:|
+| MGF L2 64 Hz | 1時間 | 24時間 |
+| PWE-EFD L2 64 Hz | 1日 | 7日 |
+| ORB L2 def | 1日 | 7日 |
+| ATT L2 txt | 1日 | 7日 |
+| LEPe/LEPi L2 3dflux | 1日 | 7日 |
+| PWE-HFA L2/L3 | 1日 | 7日 |
+| OMNI 1 min | 1か月 | 1 file |
+| OMNI hourly | 半年 | 1 file |
+
+ATTには座標変換時の補間余裕としてrange前後60秒、OMNIには従来どおりrange前後3時間の
+padを加えてからfile unitへ変換する。
+月・半年fileは代表1日だけをloaderへ渡し、同じremote file名の反復列挙を避ける。
+blockのtrange終端は次unit境界の1秒前とし、不要な次fileを取得しない。
+
+- download markerは`range/product`ではなく`product/file-unit`単位で保存する
+- markerにはloaderが返したlocal file一覧を保存し、全fileが存在する場合だけ再利用する
+- ATTはmarkerがない初回でもlocal日次fileの全coverageを先に確認し、揃っていればremote indexへ接続しない
+- 完了unitを除外した後で残りを再block化するため、再実行時は欠損unitだけを取得する
+- block内の一部CDFだけが欠損しても、取得済みunitは完了として保存する
+- 欠損・失敗unitを必要とするrangeだけを`failed_download`にする
+- `missing_remote`は再利用し、通常の再実行では再取得しない。再確認には`--force`を使う
+- 既定では2 blockを並列downloadする。`--download-workers`で変更できる
+- 各downloadは独立processなのでPySPEDAS/tplotのglobal stateを共有しない
+- 既定timeoutはblockごとに15分、最大3回retryする
 - range解析は1 rangeずつ独立kernel/processで実行する
-- 既定timeoutは4時間
+- 解析workerではATTをlocal cacheから明示的に読み込み、local ORBから太陽方向を事前生成した上で
+  `erg_cotrans(..., noload=True)`を使い、内部の暗黙的なATT/ORB downloadを抑止する
+- 解析workerでは全loaderへ`no_update=True`を適用し、ネットワークへ接続しない
+- range失敗markerには`failure_class`、`retryable`、`attempt`を保存する
+- ATT remote-indexのtimeout・接続失敗だけを解析postpass retry対象とし、EFD/LEPi等の
+  データ欠損や有効segment不足は再試行しない
+- prefetchの`failed`/`timeout` unitも一周後に再取得し、成功したrangeだけ解析へ戻す。
+  `missing_remote`はterminalとして再試行しない
 - timeout時はprocess groupを終了する
-- 解析workerでは全loaderへ `no_update=True` を適用し、ネットワークへ接続しない
-- 1 rangeの失敗状態は保存される。再実行時は未完了rangeだけが対象になる
 
-指定する`trange`は必要最小限だが、実際の保存量は配布元CDFの粒度に依存する。例えば
-MGF 64 Hzは1時間単位なので不要な時間ファイルを避けられる一方、EFD 64 HzとHFAは
-日単位ファイルのため、短いrangeでも該当日全体のCDFが保存される。
+旧`downloads/range_<id>/<product>.json` markerはunit markerへ移行しないため、
+変更後の初回prefetchでは計画を作り直す。ただし、既存CDFはPySPEDASのlocal cacheとして
+再利用される。
+
+並列数を過度に増やすと配布サーバーへの負荷と一時的な失敗が増えるため、通常は2を推奨する。
+実際の保存量は指定した解析時間幅ではなく配布CDFのfile unitで決まる。
 
 ## 注意
 

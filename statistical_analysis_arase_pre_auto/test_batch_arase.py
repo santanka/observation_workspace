@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 import pandas as pd
@@ -13,10 +14,11 @@ import batch_arase as batch
 
 class BatchAraseTests(unittest.TestCase):
     def test_manifest(self):
-        _, ranges = batch.load_ranges(batch.DEFAULT_RANGES)
-        self.assertEqual(len(ranges), 58)
-        self.assertEqual(ranges[0]["range_id"], 1)
-        self.assertEqual(ranges[-1]["range_id"], 58)
+        payload, ranges = batch.load_ranges(batch.DEFAULT_RANGES)
+        self.assertGreater(len(ranges), 0)
+        self.assertEqual(len(ranges), len(payload["ranges"]))
+        range_ids = [int(item["range_id"]) for item in ranges]
+        self.assertEqual(range_ids, sorted(set(range_ids)))
 
     def test_notebook_transform_syntax(self):
         notebook = json.loads(batch.DEFAULT_NOTEBOOK.read_text())
@@ -39,7 +41,109 @@ class BatchAraseTests(unittest.TestCase):
         self.assertIn("bootstrap_samples_path =", joined)
         self.assertIn("/tmp/arase-auto-test", joined)
         self.assertNotIn(batch.NOTEBOOK_OUTPUT_ROOT, joined)
-        self.assertEqual(joined.count("no_update=True"), 9)
+        self.assertEqual(joined.count("no_update=True"), 10)
+        self.assertIn("psp.projects.erg.att(", joined)
+        self.assertIn("name_out='sundir_j2000'", joined)
+        self.assertIn("noload=True", joined)
+        for marker in batch.REQUIRED_NOTEBOOK_ANALYSIS_MARKERS:
+            self.assertIn(marker, joined)
+
+    def test_auto_kaw_additional_selection_semantics(self):
+        notebook = json.loads(batch.DEFAULT_NOTEBOOK.read_text())
+        assignment_names = {
+            "E_SPIN_MIN_BAND_POINTS",
+            "EB_SPIN_LOGRMSE_MAX_DEX",
+            "EB_RESIDUAL_PEAK_MAX_DEX",
+        }
+        selected_nodes = []
+        for cell in notebook["cells"]:
+            if cell["cell_type"] != "code":
+                continue
+            source = batch.transform_notebook_source(
+                "".join(cell["source"]), "a", "b", Path("/tmp/test")
+            )
+            for node in ast.parse(source).body:
+                if isinstance(node, ast.Assign) and any(
+                    isinstance(target, ast.Name) and target.id in assignment_names
+                    for target in node.targets
+                ):
+                    selected_nodes.append(node)
+                elif (
+                    isinstance(node, ast.FunctionDef)
+                    and node.name == "_additional_eb_selection_mask"
+                ):
+                    selected_nodes.append(node)
+
+        namespace = {"np": np}
+        module = ast.Module(body=selected_nodes, type_ignores=[])
+        exec(compile(module, str(batch.DEFAULT_NOTEBOOK), "exec"), namespace)
+        selection_mask = namespace["_additional_eb_selection_mask"]
+        table = {
+            "n_E_spinband_kaw": np.array([0, 9, 10, 10, 10, np.nan, 5, 10]),
+            "logrmse_E_spinband_kaw": np.array([
+                np.nan, np.nan, 0.70, 0.80, np.nan, 0.10, np.nan, 0.20,
+            ]),
+            "EB_residual_peak": np.array([
+                0.50, 0.50, 0.50, 0.50, 0.50, 0.50, 0.80, np.nan,
+            ]),
+        }
+        expected = np.array([True, True, True, False, False, False, False, False])
+        np.testing.assert_array_equal(selection_mask(table), expected)
+
+    def test_auto_spinband_rmse_uses_kaw_frequency_mask(self):
+        notebook = json.loads(batch.DEFAULT_NOTEBOOK.read_text())
+        assignment_names = {
+            "SPIN_FREQUENCY_HZ",
+            "E_SPIN_FIT_RANGE_HZ",
+            "E_SPIN_BAND_MULTIPLIERS",
+            "E_SPIN_MIN_FIT_POINTS",
+            "E_SPIN_MIN_BAND_POINTS",
+        }
+        selected_nodes = []
+        for cell in notebook["cells"]:
+            if cell["cell_type"] != "code":
+                continue
+            source = batch.transform_notebook_source(
+                "".join(cell["source"]), "a", "b", Path("/tmp/test")
+            )
+            for node in ast.parse(source).body:
+                if isinstance(node, ast.Assign) and any(
+                    isinstance(target, ast.Name) and target.id in assignment_names
+                    for target in node.targets
+                ):
+                    selected_nodes.append(node)
+                elif (
+                    isinstance(node, ast.FunctionDef)
+                    and node.name == "_fit_e_spinband_baseline"
+                ):
+                    selected_nodes.append(node)
+
+        namespace = {"np": np}
+        module = ast.Module(body=selected_nodes, type_ignores=[])
+        exec(compile(module, str(batch.DEFAULT_NOTEBOOK), "exec"), namespace)
+        spinband_rmse = namespace["_fit_e_spinband_baseline"]
+
+        freq = np.logspace(np.log10(0.01), np.log10(3.0), 512)
+        spin = (freq >= 0.8 * 0.125) & (freq <= 6.0 * 0.125)
+        kaw_frequency_mask = freq >= 0.30
+        coherence = np.ones_like(freq)
+        coherence_threshold = np.full_like(freq, 0.5)
+        baseline = 4.0 * freq**-2.0
+
+        outside_only = baseline.copy()
+        outside_only[spin & ~kaw_frequency_mask] *= 10.0
+        in_range = baseline.copy()
+        in_range[spin & kaw_frequency_mask] *= 10.0
+
+        outside_result = spinband_rmse(
+            freq, outside_only, coherence, coherence_threshold, kaw_frequency_mask
+        )
+        in_range_result = spinband_rmse(
+            freq, in_range, coherence, coherence_threshold, kaw_frequency_mask
+        )
+        self.assertAlmostEqual(outside_result[0], 0.0, places=12)
+        self.assertAlmostEqual(in_range_result[0], 1.0, places=12)
+        self.assertEqual(outside_result[5], int(np.count_nonzero(spin & kaw_frequency_mask)))
 
     def test_hfa_interpolation_strict_five_minute_boundary(self):
         notebook = json.loads(batch.DEFAULT_NOTEBOOK.read_text())
@@ -103,6 +207,352 @@ class BatchAraseTests(unittest.TestCase):
         self.assertEqual(
             tranges["omni_hourly"], ["2022-09-01", "2022-09-03"]
         )
+
+    def test_product_file_units_and_blocks(self):
+        ranges = [
+            {
+                "range_id": 1,
+                "start_time": "2022-09-30T23:30:00",
+                "end_time": "2022-09-30T23:40:00",
+            },
+            {
+                "range_id": 2,
+                "start_time": "2022-09-30T23:50:00",
+                "end_time": "2022-10-01T00:20:00",
+            },
+        ]
+
+        mgf_units = batch.build_download_units(ranges, "mgf_l2_64hz")
+        self.assertEqual([unit.key for unit in mgf_units], ["20220930T23", "20221001T00"])
+        self.assertEqual(mgf_units[0].range_ids, (1, 2))
+        self.assertEqual(mgf_units[1].range_ids, (2,))
+        mgf_blocks = batch.block_download_units(mgf_units)
+        self.assertEqual(len(mgf_blocks), 1)
+        self.assertEqual(mgf_blocks[0].request_end.isoformat(), "2022-10-01T00:59:59")
+
+        daily_units = batch.build_download_units(ranges, "pwe_efd_l2_64")
+        self.assertEqual([unit.key for unit in daily_units], ["20220930", "20221001"])
+        self.assertEqual(len(batch.block_download_units(daily_units)), 1)
+
+        att_units = batch.build_download_units([{
+            "range_id": 3,
+            "start_time": "2022-10-01T00:00:30",
+            "end_time": "2022-10-01T00:01:30",
+        }], "att_l2")
+        self.assertEqual([unit.key for unit in att_units], ["20220930", "20221001"])
+        self.assertTrue(all(unit.range_ids == (3,) for unit in att_units))
+
+        omni_months = batch.build_download_units(ranges, "omni_1min")
+        self.assertEqual([unit.key for unit in omni_months], ["202209", "202210"])
+        self.assertTrue(all(
+            block.request_end - block.start == pd.Timedelta(days=1, seconds=-1)
+            for block in batch.block_download_units(omni_months)
+        ))
+        omni_halves = batch.build_download_units(ranges, "omni_hourly")
+        self.assertEqual([unit.key for unit in omni_halves], ["2022H2"])
+
+    def test_download_block_cap_and_plan_reduction(self):
+        ranges = [
+            {
+                "range_id": i + 1,
+                "start_time": f"2022-09-01T0{i}:10:00",
+                "end_time": f"2022-09-01T0{i}:20:00",
+            }
+            for i in range(3)
+        ]
+        units = batch.build_download_units(ranges, "mgf_l2_64hz")
+        blocks = batch.block_download_units(units, max_block_units=2)
+        self.assertEqual([len(block.units) for block in blocks], [2, 1])
+
+        _, current_ranges = batch.load_ranges(batch.DEFAULT_RANGES)
+        plan = batch.build_download_plan(current_ranges)
+        old_request_count = len(current_ranges) * len(batch.PRODUCTS)
+        self.assertLess(len(plan), old_request_count)
+        self.assertTrue(all(block.units for block in plan))
+
+    def test_download_unit_marker_requires_existing_files(self):
+        unit = batch.DownloadUnit(
+            product="mgf_l2_64hz",
+            key="20220901T00",
+            start=pd.Timestamp("2022-09-01T00:00:00").to_pydatetime(),
+            end_exclusive=pd.Timestamp("2022-09-01T01:00:00").to_pydatetime(),
+            range_ids=(1,),
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            state_dir = Path(tmp) / "state"
+            local_file = Path(tmp) / "erg_mgf_test.cdf"
+            local_file.write_bytes(b"cdf")
+            marker_path = batch.download_unit_marker(state_dir, unit)
+            batch.atomic_json(marker_path, {
+                "status": "complete",
+                "product": unit.product,
+                "unit_key": unit.key,
+                "unit_start": unit.start.isoformat(),
+                "unit_end_exclusive": unit.end_exclusive.isoformat(),
+                "files": [str(local_file)],
+            })
+            self.assertTrue(batch.compatible_download_unit(marker_path, unit))
+            local_file.unlink()
+            self.assertFalse(batch.compatible_download_unit(marker_path, unit))
+
+    def test_download_files_are_assigned_to_their_physical_unit(self):
+        ranges = [{
+            "range_id": 1,
+            "start_time": "2022-09-01T00:10:00",
+            "end_time": "2022-09-01T01:10:00",
+        }]
+        units = batch.build_download_units(ranges, "mgf_l2_64hz")
+        files = [
+            "/data/erg_mgf_l2_64hz_dsi_2022090100_v01.cdf",
+            "/data/erg_mgf_l2_64hz_dsi_2022090101_v01.cdf",
+        ]
+        self.assertEqual(batch._files_for_unit(files, units[0]), [files[0]])
+        self.assertEqual(batch._files_for_unit(files, units[1]), [files[1]])
+
+    def test_att_local_files_must_cover_every_requested_day(self):
+        files = [
+            "/data/erg_att_l2_20220901_v03.txt",
+            "/data/erg_att_l2_20220902_v03.txt",
+        ]
+        self.assertTrue(batch._att_files_cover_trange(
+            files, "2022-09-01T00:00:00", "2022-09-02T23:59:59"
+        ))
+        self.assertFalse(batch._att_files_cover_trange(
+            files[:1], "2022-09-01T00:00:00", "2022-09-02T23:59:59"
+        ))
+
+    def test_omni_hourly_request_uses_date_only(self):
+        self.assertEqual(
+            batch._product_request_trange(
+                "omni_hourly", "2022-07-01T00:00:00", "2022-07-01T23:59:59"
+            ),
+            ["2022-07-01", "2022-07-01"],
+        )
+
+    def test_prefetch_block_writes_reusable_unit_markers(self):
+        ranges = [{
+            "range_id": 1,
+            "start_time": "2022-09-01T00:10:00",
+            "end_time": "2022-09-01T01:10:00",
+        }]
+        units = batch.build_download_units(ranges, "mgf_l2_64hz")
+        block = batch.block_download_units(units)[0]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            args = type("Args", (), {
+                "spedas_dir": root / "spedas",
+                "download_timeout": 30,
+            })()
+
+            def fake_run_child(command, log_path, timeout, env):
+                result_path = Path(command[command.index("--result-json") + 1])
+                local_files = [
+                    root / "spedas" / f"erg_mgf_l2_64hz_dsi_{token}_v01.cdf"
+                    for token in ("2022090100", "2022090101")
+                ]
+                for local_file in local_files:
+                    local_file.parent.mkdir(parents=True, exist_ok=True)
+                    local_file.write_bytes(b"cdf")
+                batch.atomic_json(
+                    result_path, {"files": [str(path) for path in local_files]},
+                )
+                return 0
+
+            with mock.patch.object(batch, "run_child", side_effect=fake_run_child):
+                _, failed_units = batch._run_prefetch_block(
+                    args, block, root / "state", {},
+                )
+
+            self.assertEqual(failed_units, ())
+            for unit in units:
+                marker_path = batch.download_unit_marker(root / "state", unit)
+                self.assertTrue(batch.compatible_download_unit(marker_path, unit))
+
+    def test_prefetch_block_only_fails_the_missing_unit(self):
+        ranges = [{
+            "range_id": 1,
+            "start_time": "2022-09-01T00:10:00",
+            "end_time": "2022-09-01T01:10:00",
+        }]
+        units = batch.build_download_units(ranges, "mgf_l2_64hz")
+        block = batch.block_download_units(units)[0]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            args = type("Args", (), {
+                "spedas_dir": root / "spedas",
+                "download_timeout": 30,
+            })()
+
+            def fake_run_child(command, log_path, timeout, env):
+                result_path = Path(command[command.index("--result-json") + 1])
+                local_file = (
+                    root / "spedas" / "erg_mgf_l2_64hz_dsi_2022090100_v01.cdf"
+                )
+                local_file.parent.mkdir(parents=True, exist_ok=True)
+                local_file.write_bytes(b"cdf")
+                batch.atomic_json(result_path, {"files": [str(local_file)]})
+                return 0
+
+            with mock.patch.object(batch, "run_child", side_effect=fake_run_child):
+                _, failed_units = batch._run_prefetch_block(
+                    args, block, root / "state", {},
+                )
+
+            self.assertEqual(failed_units, (units[1],))
+            self.assertTrue(batch.compatible_download_unit(
+                batch.download_unit_marker(root / "state", units[0]), units[0]
+            ))
+            missing = json.loads(
+                batch.download_unit_marker(root / "state", units[1]).read_text()
+            )
+            self.assertEqual(missing["status"], "missing_remote")
+
+    def test_known_missing_unit_is_reused_without_download(self):
+        ranges = [{
+            "range_id": 1,
+            "start_time": "2022-09-01T00:10:00",
+            "end_time": "2022-09-01T00:20:00",
+        }]
+        unit = batch.build_download_units(ranges, "mgf_l2_64hz")[0]
+        with tempfile.TemporaryDirectory() as tmp:
+            state_dir = Path(tmp) / "state"
+            marker = batch.download_unit_marker(state_dir, unit)
+            batch._write_unit_status(
+                state_dir, unit, "missing_remote",
+                batch.block_download_units([unit])[0],
+                files=[],
+            )
+            self.assertTrue(batch.known_missing_download_unit(marker, unit))
+            args = type("Args", (), {
+                "state_dir": state_dir,
+                "spedas_dir": Path(tmp) / "spedas",
+                "force": False,
+                "download_workers": 2,
+                "download_timeout": 30,
+            })()
+            with (
+                mock.patch.object(batch, "PRODUCTS", ("mgf_l2_64hz",)),
+                mock.patch.object(batch, "_run_prefetch_block") as worker,
+            ):
+                self.assertEqual(batch.run_prefetch(args, ranges), {1})
+            worker.assert_not_called()
+
+
+    def test_att_failure_classification_is_narrow(self):
+        att_log = (
+            "erg_interpolate_att\n"
+            "Downloading remote index: https://example/erg/att/txt/\n"
+            "ReadTimeoutError: read timed out\n"
+            "Connection error getting remote index\n"
+            "ValueError: No objects to concatenate\n"
+        )
+        self.assertEqual(
+            batch.classify_range_failure(att_log, 1),
+            ("att_download_transient", True),
+        )
+        self.assertEqual(
+            batch.classify_range_failure(
+                "ValueError: No overlapping E64/B64 DSI segments", 1
+            ),
+            ("no_overlapping_efd_mgf_waveform", False),
+        )
+        self.assertEqual(
+            batch.classify_range_failure(
+                "erg_interpolate_att\nValueError: No objects to concatenate", 1
+            ),
+            ("att_data_unavailable", False),
+        )
+
+    def test_retryable_download_ranges_exclude_missing_remote(self):
+        ranges = [{
+            "range_id": 1,
+            "start_time": "2022-09-01T12:10:00",
+            "end_time": "2022-09-01T12:20:00",
+        }]
+        unit = batch.build_download_units(ranges, "att_l2")[0]
+        block = batch.block_download_units([unit])[0]
+        with tempfile.TemporaryDirectory() as tmp:
+            state_dir = Path(tmp) / "state"
+            batch._write_unit_status(
+                state_dir, unit, "failed", block, files=[], returncode=1
+            )
+            self.assertEqual(
+                batch.retryable_download_range_ids(state_dir, ranges), {1}
+            )
+            batch._write_unit_status(
+                state_dir, unit, "missing_remote", block, files=[]
+            )
+            self.assertEqual(
+                batch.retryable_download_range_ids(state_dir, ranges), set()
+            )
+
+    def test_run_ranges_marks_att_network_failure_retryable(self):
+        _, ranges = batch.load_ranges(batch.DEFAULT_RANGES)
+        item = ranges[0]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            args = type("Args", (), {
+                "notebook": batch.DEFAULT_NOTEBOOK,
+                "state_dir": root / "state",
+                "output_root": root / "output",
+                "spedas_dir": root / "spedas",
+                "kernel_name": "python3",
+                "analysis_timeout": 30,
+                "force": False,
+            })()
+
+            def fake_run_child(command, log_path, timeout, env):
+                log_path.parent.mkdir(parents=True, exist_ok=True)
+                log_path.write_text(
+                    "erg_interpolate_att\n"
+                    "https://example/erg/att/txt/\n"
+                    "ReadTimeoutError\n"
+                    "Connection error getting remote index\n"
+                )
+                return 1
+
+            with mock.patch.object(batch, "run_child", side_effect=fake_run_child):
+                batch.run_ranges(args, [item], "ranges-hash")
+
+            status = json.loads(batch.status_path(args.state_dir, item).read_text())
+            self.assertEqual(status["status"], "failed")
+            self.assertEqual(status["failure_class"], "att_download_transient")
+            self.assertTrue(status["retryable"])
+            self.assertEqual(status["attempt"], 1)
+
+    def test_postpass_retries_only_retryable_analysis_ranges(self):
+        ranges = [
+            {"range_id": 1, "start_time": "2022-09-01T00:00:00", "end_time": "2022-09-01T00:10:00"},
+            {"range_id": 2, "start_time": "2022-09-01T01:00:00", "end_time": "2022-09-01T01:10:00"},
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            state_dir = Path(tmp) / "state"
+            batch.atomic_json(batch.status_path(state_dir, ranges[0]), {
+                "status": "failed", "retryable": True,
+            })
+            batch.atomic_json(batch.status_path(state_dir, ranges[1]), {
+                "status": "failed", "retryable": False,
+            })
+            args = type("Args", (), {
+                "state_dir": state_dir,
+                "postpass_retries": 1,
+            })()
+            with (
+                mock.patch.object(batch, "retryable_download_range_ids", return_value=set()),
+                mock.patch.object(batch, "run_ranges") as run_ranges,
+                mock.patch.object(batch.time, "sleep") as sleep,
+            ):
+                batch.run_postpass_retries(args, ranges, "ranges-hash")
+            sleep.assert_called_once_with(batch.POSTPASS_RETRY_DELAYS_SEC[0])
+            run_ranges.assert_called_once_with(args, [ranges[0]], "ranges-hash")
+
+    def test_download_worker_default(self):
+        args = batch.build_parser().parse_args(["prefetch"])
+        self.assertEqual(args.download_workers, batch.DEFAULT_DOWNLOAD_WORKERS)
+        run_args = batch.build_parser().parse_args(["run"])
+        self.assertEqual(run_args.postpass_retries, batch.POSTPASS_RETRIES)
 
     def test_aggregate_excludes_unaccepted_old_summary(self):
         _, ranges = batch.load_ranges(batch.DEFAULT_RANGES)

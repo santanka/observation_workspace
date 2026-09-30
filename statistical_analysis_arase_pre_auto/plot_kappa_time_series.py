@@ -167,8 +167,8 @@ def plot_phase(frame, phase_mode, title, start, end, ylim, output_base, show=Fal
     decimals = int(PLOT_CONFIG["mean_decimals"])
     ax.set_title(
         f"{title}  ($N={len(phase)}$ detected ranges)\n"
-        rf"mean $\kappa_E={mean_e:.{decimals}f}$, "
-        rf"mean $\kappa_B={mean_b:.{decimals}f}$"
+        rf"mean $\kappa_{{\mathrm{{E}}}}={mean_e:.{decimals}f}$, "
+        rf"mean $\kappa_{{\mathrm{{B}}}}={mean_b:.{decimals}f}$"
     )
     locator = mdates.AutoDateLocator(minticks=5, maxticks=10)
     ax.xaxis.set_major_locator(locator)
