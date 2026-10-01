@@ -31,6 +31,8 @@ DEFAULT_VALID_RANGES_DIR = Path(
 )
 DEFAULT_SPEDAS_DIR = Path("/mnt/j/observation_data")
 DEFAULT_TIMEOUT_SEC = 24 * 3600
+NO_DATA_EXIT_CODE = 20
+NO_DATA_EXCEPTION_NAME = "NoUsableScienceData"
 
 
 @dataclass(frozen=True)
@@ -128,6 +130,62 @@ def expected_result(valid_ranges_dir: Path, month: MonthRange) -> Path:
     return valid_ranges_dir / f"Arase_valid_time_ranges_{start}_to_{end}.json"
 
 
+def extract_no_data_reason(error: BaseException) -> str | None:
+    """Notebookの専用例外から短いno_data理由を取り出す。"""
+    plain_error = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", str(error))
+    marker = f"{NO_DATA_EXCEPTION_NAME}:"
+    for line in reversed(plain_error.splitlines()):
+        if marker in line:
+            return line.split(marker, 1)[1].strip()
+    return None
+
+
+def no_data_result_payload(month: MonthRange, reason: str) -> dict[str, Any]:
+    """必須データ全期間欠測時の空range JSONを作る。"""
+    return {
+        "description": (
+            "No valid analysis ranges: a required Arase data product was "
+            "unavailable for the full analysis interval."
+        ),
+        "source_notebook": DEFAULT_NOTEBOOK.name,
+        "analysis_status": "no_data",
+        "no_data_reason": reason,
+        "time_range_input": [month.start_text, month.end_text],
+        "event_half_width_sec": 200.0,
+        "minimum_event_duration_sec": 400.0,
+        "maximum_analysis_duration_sec": 1200.0,
+        "background_context_pad_sec": 60.0,
+        "range_boundary_epsilon_sec": 1e-6,
+        "range_interval_convention": (
+            "closed intervals; non-final segment ends 1 microsecond before "
+            "the next segment starts"
+        ),
+        "n_parent_ranges": 0,
+        "n_analysis_ranges": 0,
+        "n_valid_ranges": 0,
+        "n_split_parent_ranges": 0,
+        "total_parent_duration_min": 0.0,
+        "total_analysis_duration_min": 0.0,
+        "total_duration_min": 0.0,
+        "selection_summary": {
+            "n_selected_times": 0,
+            "n_selected_times_mono": 0,
+            "n_forbidden_intervals_mono": 1,
+        },
+        "conditions": [
+            "Required data product unavailable for the full analysis interval",
+            "The full interval was excluded; absence was not treated as a non-detection",
+        ],
+        "unavailable_ranges": [{
+            "start_time": month.start.isoformat(),
+            "end_time": month.end.isoformat(),
+            "reason": reason,
+        }],
+        "parent_ranges": [],
+        "ranges": [],
+    }
+
+
 def status_path(state_dir: Path, month: MonthRange) -> Path:
     return state_dir / "months" / f"{month.key}.json"
 
@@ -136,7 +194,7 @@ def compatible_complete(
     status: dict[str, Any], notebook_hash: str, runner_hash: str, result: Path
 ) -> bool:
     return (
-        status.get("status") == "complete"
+        status.get("status") in {"complete", "no_data"}
         and status.get("notebook_sha256") == notebook_hash
         and status.get("runner_sha256") == runner_hash
         and Path(status.get("result_path", "")) == result
@@ -216,7 +274,14 @@ def execute_one(args: argparse.Namespace) -> int:
     )
     try:
         client.execute()
-    except Exception:
+    except Exception as err:
+        no_data_reason = extract_no_data_reason(err)
+        if no_data_reason is not None:
+            result = expected_result(Path(args.valid_ranges_dir), month)
+            atomic_json(result, no_data_result_payload(month, no_data_reason))
+            print(f"NO_DATA: {no_data_reason}", flush=True)
+            print(f"empty result saved: {result}", flush=True)
+            return NO_DATA_EXIT_CODE
         failed_path.parent.mkdir(parents=True, exist_ok=True)
         nbformat.write(notebook, failed_path)
         print(f"partial failed notebook saved: {failed_path}", flush=True)
@@ -302,15 +367,16 @@ def run_months(args: argparse.Namespace) -> int:
         started = time.monotonic()
         code = run_child(command, log_path, int(args.timeout), env)
         elapsed = time.monotonic() - started
-        if code == 0 and result.is_file():
+        if code in {0, NO_DATA_EXIT_CODE} and result.is_file():
+            state = "no_data" if code == NO_DATA_EXIT_CODE else "complete"
             terminal = {
                 **base,
-                "status": "complete",
+                "status": state,
                 "returncode": code,
                 "elapsed_sec": elapsed,
                 "finished_at": datetime.now().isoformat(),
             }
-            print(f"[{index}/{len(ranges)}] {month.key}: complete ({elapsed / 60:.1f} min)")
+            print(f"[{index}/{len(ranges)}] {month.key}: {state} ({elapsed / 60:.1f} min)")
         else:
             state = "timeout" if code == 124 else "failed"
             terminal = {

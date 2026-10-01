@@ -74,6 +74,48 @@ class MonthlyRunnerTests(unittest.TestCase):
             )
             self.assertEqual(month.key, "202004")
 
+    def test_no_data_status_is_also_compatible_terminal_state(self):
+        month = runner.build_month_ranges(
+            "20210801/00:00:00", "20210901/00:00:00"
+        )[0]
+        with tempfile.TemporaryDirectory() as temporary:
+            result = Path(temporary) / "result.json"
+            result.write_text(json.dumps({"analysis_status": "no_data", "ranges": []}))
+            status = {
+                "status": "no_data",
+                "notebook_sha256": "notebook",
+                "runner_sha256": "runner",
+                "result_path": str(result),
+            }
+            self.assertTrue(
+                runner.compatible_complete(status, "notebook", "runner", result)
+            )
+
+    def test_no_data_payload_has_empty_ranges_and_full_unavailable_interval(self):
+        month = runner.build_month_ranges(
+            "20210801/00:00:00", "20210901/00:00:00"
+        )[0]
+        reason = "required product unavailable for full interval: LEPi L2 omniflux"
+        payload = runner.no_data_result_payload(month, reason)
+        self.assertEqual(payload["analysis_status"], "no_data")
+        self.assertEqual(payload["ranges"], [])
+        self.assertEqual(payload["n_valid_ranges"], 0)
+        self.assertEqual(payload["unavailable_ranges"][0]["reason"], reason)
+        self.assertEqual(
+            payload["unavailable_ranges"][0]["start_time"],
+            "2021-08-01T00:00:00",
+        )
+
+    def test_extract_no_data_reason(self):
+        error = RuntimeError(
+            "traceback\n\x1b[31mNoUsableScienceData\x1b[39m: "
+            "required product unavailable: HFA"
+        )
+        self.assertEqual(
+            runner.extract_no_data_reason(error),
+            "required product unavailable: HFA",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
