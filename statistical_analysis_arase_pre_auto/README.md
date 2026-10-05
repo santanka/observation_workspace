@@ -149,12 +149,41 @@ GSM軸範囲は共通にする。
 
 全candidateの図だけに限定する場合は`--all-ranges-only`を指定する。
 
+## event別GSM・SM軌道図
+
+1 analysis rangeを1 eventとして、GSMとSMを別図へ出力する。各図はXY、XZ、YZの
+3 panelで、ORB native cadenceの軌道を実線、range startを緑の大丸、startから2分ごとの
+位置を小点、range endを赤い星で示す。start/endと途中点はORB位置を指定時刻へ線形補間
+する。
+
+既処理期間へのbackfillはKAW解析を再実行せず、次で行う。
+
+```bash
+.venv_pyspedas/bin/python \
+  statistical_analysis_arase_pre_auto/batch_arase.py event-orbits \
+  --ranges /mnt/j/statistical_analysis_arase/preanalysis/valid_time_ranges/Arase_valid_time_ranges_20200101_000000_to_20200201_000000.json
+```
+
+通常のbatch終了後に続けて作図する場合は`run`へ`--plot-event-orbits`を付ける。既定では
+manifest中の全rangeを対象とする。`--completed-only`、反復可能な`--range-id`、
+`--png-only`、`--refresh-cache`をbackfill subcommandで使用できる。既存図はskipするため、
+中断後に同じcommandで再開でき、上書きには`--force`を使う。
+
+出力は`KAW_observation/auto/<dataset key>/event_orbits/range_NNN/`に保存する。GSM・SM
+それぞれのPNG/PDFと、manifest hashで検証する共通ORB cacheを生成する。途中点間隔、色、
+marker、線幅、軸範囲、画像形式は`plot_event_orbits.py`冒頭の`PLOT_CONFIG`で変更できる。
+短いrangeでは地球スケール上でstart/endが重なるため、上段を地球を含む全体図、下段を
+対応するXY・XZ・YZのevent-localな詳細図とする。詳細図は元図へ重ねず、衛星位置、地球、
+目盛ラベルとの重なりを避ける。`show_event_zoom`、`event_zoom_min_span_re`、
+`event_zoom_padding_fraction`で調整できる。
+
 ## κの初期時系列図
 
 `status == "ok"`で、κとbootstrap q16/q84が有限な結果だけをplotする。range中央時刻を
-横軸、κを縦軸とし、κ_Eはgreen、κ_Bはpurple、errorbarはbootstrap q16--q84とする。
+横軸、κを縦軸とし、κ_Eはgreen、κ_Bはpurple、κ_Sはorange、errorbarはbootstrap
+q16--q84とする。
 north/south/standing/allは別々のPNG・PDFに保存する。
-各phaseでplotされた点のκ_E・κ_Bを等重みで算術平均し、対応色の横破線とtitle内の
+各phaseでplotされた点のκ_E・κ_B・κ_Sを等重みで算術平均し、対応色の横破線とtitle内の
 数値として表示する。
 
 ```bash
@@ -263,6 +292,7 @@ blockのtrange終端は次unit境界の1秒前とし、不要な次fileを取得
 - download markerは`range/product`ではなく`product/file-unit`単位で保存する
 - markerにはloaderが返したlocal file一覧を保存し、全fileが存在する場合だけ再利用する
 - ATTはmarkerがない初回でもlocal日次fileの全coverageを先に確認し、揃っていればremote indexへ接続しない
+- MGFもlocal 1時間fileの全coverageを先に確認する。不足時だけremoteへ接続し、取得後に要求hourを再検証する
 - 完了unitを除外した後で残りを再block化するため、再実行時は欠損unitだけを取得する
 - block内の一部CDFだけが欠損しても、取得済みunitは完了として保存する
 - 欠損・失敗unitを必要とするrangeだけを`failed_download`にする

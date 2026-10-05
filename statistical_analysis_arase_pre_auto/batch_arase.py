@@ -936,17 +936,50 @@ def _product_request_trange(product: str, start: str, end: str) -> list[str]:
     return [start, end]
 
 
+def _missing_file_tokens(
+    files: list[str], start: str, end: str, cadence: str
+) -> list[str]:
+    """Return physical time tokens not represented by the supplied filenames."""
+    cursor = _floor_unit(_parse_time(start), cadence)
+    final = _floor_unit(_parse_time(end), cadence)
+    filenames = [Path(path).name for path in files]
+    missing = []
+    while cursor <= final:
+        token = cursor.strftime("%Y%m%d%H" if cadence == "hour" else "%Y%m%d")
+        if not any(token in filename for filename in filenames):
+            missing.append(token)
+        cursor = _next_unit(cursor, cadence)
+    return missing
+
+
 def _att_files_cover_trange(files: list[str], start: str, end: str) -> bool:
     """Return True when local ATT filenames cover every requested UTC day."""
-    cursor = _floor_unit(_parse_time(start), "day")
-    final = _floor_unit(_parse_time(end), "day")
-    filenames = [Path(path).name for path in files]
-    while cursor <= final:
-        token = cursor.strftime("%Y%m%d")
-        if not any(token in filename for filename in filenames):
-            return False
-        cursor = _next_unit(cursor, "day")
-    return True
+    return not _missing_file_tokens(files, start, end, "day")
+
+
+def _prefetch_mgf_files(mgf_loader, trange: list[str]) -> list[str]:
+    """Use complete local hourly MGF coverage before contacting the server."""
+    kwargs = {
+        "trange": trange,
+        "level": "l2",
+        "datatype": "64hz",
+        "coord": "dsi",
+        "get_support_data": True,
+        "downloadonly": True,
+    }
+    local_files = _normalize_download_files(mgf_loader(**kwargs, no_update=True))
+    if not _missing_file_tokens(local_files, trange[0], trange[1], "hour"):
+        return local_files
+
+    downloaded = _normalize_download_files(mgf_loader(**kwargs))
+    files = list(dict.fromkeys(local_files + downloaded))
+    missing = _missing_file_tokens(files, trange[0], trange[1], "hour")
+    if missing:
+        raise RuntimeError(
+            "MGF local/download result does not cover requested UTC hours: "
+            + ", ".join(missing)
+        )
+    return files
 
 
 def prefetch_one(args: argparse.Namespace) -> int:
@@ -974,10 +1007,7 @@ def prefetch_one(args: argparse.Namespace) -> int:
             trange=trange, level="l2", datatype="64", coord="dsi",
             get_support_data=True, downloadonly=True,
         ),
-        "mgf_l2_64hz": lambda: ergpy.mgf(
-            trange=trange, level="l2", datatype="64hz", coord="dsi",
-            get_support_data=True, downloadonly=True,
-        ),
+        "mgf_l2_64hz": lambda: _prefetch_mgf_files(ergpy.mgf, trange),
         "orb_l2_def": lambda: ergpy.orb(
             trange=trange, level="l2", datatype="def", downloadonly=True,
         ),
@@ -1447,6 +1477,29 @@ def aggregate(args: argparse.Namespace, ranges: list[dict[str, Any]]) -> None:
     print(status_df["status"].value_counts(dropna=False).to_string())
 
 
+def run_event_orbit_plotter(args: argparse.Namespace) -> int:
+    """Run the optional event-orbit postprocessor in an isolated process."""
+    command = [
+        sys.executable,
+        str(ROOT / "statistical_analysis_arase_pre_auto" / "plot_event_orbits.py"),
+        "--ranges", str(args.ranges),
+        "--spedas-dir", str(args.spedas_dir),
+        "--state-dir", str(args.state_dir),
+        "--output-dir", str(Path(args.output_root) / "event_orbits"),
+    ]
+    for range_id in args.range_id or []:
+        command.extend(["--range-id", str(range_id)])
+    for attribute, option in (
+        ("completed_only", "--completed-only"),
+        ("refresh_cache", "--refresh-cache"),
+        ("png_only", "--png-only"),
+        ("force", "--force"),
+    ):
+        if getattr(args, attribute, False):
+            command.append(option)
+    return subprocess.run(command, check=False).returncode
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -1477,6 +1530,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--postpass-retries", type=int, default=POSTPASS_RETRIES,
         help="Retry transient download/ATT failures after the first full pass",
     )
+    run.add_argument(
+        "--plot-event-orbits", action="store_true",
+        help="After aggregation, write separate GSM and SM figures for each range",
+    )
 
     prefetch = sub.add_parser("prefetch", help="Download required product file units")
     common(prefetch)
@@ -1485,6 +1542,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     agg = sub.add_parser("aggregate", help="Rebuild master tables")
     common(agg)
+
+    event_orbits = sub.add_parser(
+        "event-orbits", help="Backfill separate GSM and SM orbit figures per range"
+    )
+    common(event_orbits)
+    event_orbits.add_argument("--completed-only", action="store_true")
+    event_orbits.add_argument("--refresh-cache", action="store_true")
+    event_orbits.add_argument("--png-only", action="store_true")
 
     one = sub.add_parser("_execute-one")
     one.add_argument("--notebook", required=True)
@@ -1523,6 +1588,8 @@ def main() -> int:
         if args.command == "aggregate":
             aggregate(args, ranges)
             return 0
+        if args.command == "event-orbits":
+            return run_event_orbit_plotter(args)
         runnable_ranges = ranges
         if not args.skip_prefetch:
             failed_ranges = run_prefetch(args, ranges)
@@ -1546,6 +1613,8 @@ def main() -> int:
         # A partial run must not replace the master tables with only that subset.
         # Rebuild them from every range whose output is currently available.
         aggregate(args, all_ranges)
+        if args.plot_event_orbits:
+            return run_event_orbit_plotter(args)
         return 0
     except Exception:
         traceback.print_exc()

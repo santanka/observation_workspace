@@ -18,6 +18,9 @@ class KappaTimeSeriesTests(unittest.TestCase):
             "kappa_B": 2.0,
             "kappa_B_q16": 1.7,
             "kappa_B_q84": 2.4,
+            "kappa_S": 0.6,
+            "kappa_S_q16": 0.4,
+            "kappa_S_q84": 0.9,
         }
         frame = pd.DataFrame([
             {**base, "status": "ok"},
@@ -29,7 +32,10 @@ class KappaTimeSeriesTests(unittest.TestCase):
         np.testing.assert_allclose(
             kappa_plot.asymmetric_error(selected, "E"), [[0.2], [0.3]]
         )
-        self.assertEqual(kappa_plot.phase_means(selected), (1.0, 2.0))
+        np.testing.assert_allclose(
+            kappa_plot.asymmetric_error(selected, "S"), [[0.2], [0.3]]
+        )
+        self.assertEqual(kappa_plot.phase_means(selected), (1.0, 2.0, 0.6))
 
     def test_invalid_or_nonfinite_interval_is_excluded(self):
         frame = pd.DataFrame([{
@@ -38,6 +44,7 @@ class KappaTimeSeriesTests(unittest.TestCase):
             "phase_mode": "all", "status": "ok",
             "kappa_E": 1.0, "kappa_E_q16": 1.1, "kappa_E_q84": 1.3,
             "kappa_B": 2.0, "kappa_B_q16": 1.7, "kappa_B_q84": np.nan,
+            "kappa_S": 0.6, "kappa_S_q16": 0.4, "kappa_S_q84": 0.9,
         }])
         self.assertTrue(kappa_plot.select_detected_results(frame).empty)
 

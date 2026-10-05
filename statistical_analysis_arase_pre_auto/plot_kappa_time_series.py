@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plot preliminary kappa_E and kappa_B time series for each phase mode."""
+"""Plot preliminary kappa_E, kappa_B, and kappa_S time series by phase."""
 
 from __future__ import annotations
 
@@ -21,6 +21,7 @@ import pandas as pd
 PLOT_CONFIG = {
     "kappa_E_color": "green",
     "kappa_B_color": "purple",
+    "kappa_S_color": "orange",
     "marker": "o",
     "marker_size": 4.5,
     "error_linewidth": 1.0,
@@ -53,6 +54,7 @@ REQUIRED_COLUMNS = {
     "range_start", "range_end", "phase_mode", "status",
     "kappa_E", "kappa_E_q16", "kappa_E_q84",
     "kappa_B", "kappa_B_q16", "kappa_B_q84",
+    "kappa_S", "kappa_S_q16", "kappa_S_q84",
 }
 
 
@@ -86,16 +88,17 @@ def select_detected_results(frame: pd.DataFrame) -> pd.DataFrame:
         raise KeyError(f"Master CSV lacks columns: {sorted(missing)}")
     selected = frame.loc[frame["status"].eq("ok")].copy()
     numeric = [
-        "kappa_E", "kappa_E_q16", "kappa_E_q84",
-        "kappa_B", "kappa_B_q16", "kappa_B_q84",
+        f"kappa_{component}{suffix}"
+        for component in "EBS"
+        for suffix in ("", "_q16", "_q84")
     ]
     finite = np.isfinite(selected[numeric].to_numpy(dtype=float)).all(axis=1)
-    ordered = (
-        (selected["kappa_E_q16"] <= selected["kappa_E"])
-        & (selected["kappa_E"] <= selected["kappa_E_q84"])
-        & (selected["kappa_B_q16"] <= selected["kappa_B"])
-        & (selected["kappa_B"] <= selected["kappa_B_q84"])
-    )
+    ordered = pd.Series(True, index=selected.index)
+    for component in "EBS":
+        ordered &= (
+            (selected[f"kappa_{component}_q16"] <= selected[f"kappa_{component}"])
+            & (selected[f"kappa_{component}"] <= selected[f"kappa_{component}_q84"])
+        )
     selected = selected.loc[finite & ordered].copy()
     selected["range_start"] = pd.to_datetime(selected["range_start"])
     selected["range_end"] = pd.to_datetime(selected["range_end"])
@@ -108,8 +111,8 @@ def select_detected_results(frame: pd.DataFrame) -> pd.DataFrame:
 def common_ylim(frame: pd.DataFrame):
     if PLOT_CONFIG["ylim"] is not None:
         return tuple(PLOT_CONFIG["ylim"])
-    low = float(frame[["kappa_E_q16", "kappa_B_q16"]].min().min())
-    high = float(frame[["kappa_E_q84", "kappa_B_q84"]].max().max())
+    low = float(frame[[f"kappa_{c}_q16" for c in "EBS"]].min().min())
+    high = float(frame[[f"kappa_{c}_q84" for c in "EBS"]].max().max())
     span = max(high - low, 0.5)
     return low - 0.07 * span, high + 0.07 * span
 
@@ -122,7 +125,7 @@ def asymmetric_error(frame: pd.DataFrame, component: str):
 
 
 def phase_means(frame: pd.DataFrame):
-    return float(frame["kappa_E"].mean()), float(frame["kappa_B"].mean())
+    return tuple(float(frame[f"kappa_{component}"].mean()) for component in "EBS")
 
 
 def plot_phase(frame, phase_mode, title, start, end, ylim, output_base, show=False):
@@ -140,26 +143,24 @@ def plot_phase(frame, phase_mode, title, start, end, ylim, output_base, show=Fal
         "alpha": PLOT_CONFIG["alpha"],
         "linestyle": "none",
     }
-    ax.errorbar(
-        phase["plot_time"], phase["kappa_E"],
-        yerr=asymmetric_error(phase, "E"),
-        color=PLOT_CONFIG["kappa_E_color"], ecolor=PLOT_CONFIG["kappa_E_color"],
-        label=r"$\kappa_{\mathrm{E}}$", **shared,
-    )
-    ax.errorbar(
-        phase["plot_time"], phase["kappa_B"],
-        yerr=asymmetric_error(phase, "B"),
-        color=PLOT_CONFIG["kappa_B_color"], ecolor=PLOT_CONFIG["kappa_B_color"],
-        label=r"$\kappa_{\mathrm{B}}$", **shared,
-    )
-    mean_e, mean_b = phase_means(phase)
+    for component in "EBS":
+        color = PLOT_CONFIG[f"kappa_{component}_color"]
+        ax.errorbar(
+            phase["plot_time"], phase[f"kappa_{component}"],
+            yerr=asymmetric_error(phase, component),
+            color=color, ecolor=color,
+            label=rf"$\kappa_{{\mathrm{{{component}}}}}$", **shared,
+        )
+    means = phase_means(phase)
     mean_line = {
         "linestyle": PLOT_CONFIG["mean_line_style"],
         "linewidth": PLOT_CONFIG["mean_line_width"],
         "alpha": PLOT_CONFIG["mean_line_alpha"],
     }
-    ax.axhline(mean_e, color=PLOT_CONFIG["kappa_E_color"], **mean_line)
-    ax.axhline(mean_b, color=PLOT_CONFIG["kappa_B_color"], **mean_line)
+    for component, mean in zip("EBS", means):
+        ax.axhline(
+            mean, color=PLOT_CONFIG[f"kappa_{component}_color"], **mean_line
+        )
     ax.set_xlim(start, end)
     ax.set_ylim(*ylim)
     ax.set_ylabel(r"Spectral index $\kappa$")
@@ -167,8 +168,10 @@ def plot_phase(frame, phase_mode, title, start, end, ylim, output_base, show=Fal
     decimals = int(PLOT_CONFIG["mean_decimals"])
     ax.set_title(
         f"{title}  ($N={len(phase)}$ detected ranges)\n"
-        rf"mean $\kappa_{{\mathrm{{E}}}}={mean_e:.{decimals}f}$, "
-        rf"mean $\kappa_{{\mathrm{{B}}}}={mean_b:.{decimals}f}$"
+        + ", ".join(
+            rf"mean $\kappa_{{\mathrm{{{component}}}}}={mean:.{decimals}f}$"
+            for component, mean in zip("EBS", means)
+        )
     )
     locator = mdates.AutoDateLocator(minticks=5, maxticks=10)
     ax.xaxis.set_major_locator(locator)
@@ -213,7 +216,7 @@ def main():
     written = []
     for phase_mode, title in PHASES.items():
         output_base = output_dir / (
-            f"kappa_E_B_{phase_mode}_{start:%Y%m%d}_{last_day:%Y%m%d}"
+            f"kappa_E_B_S_{phase_mode}_{start:%Y%m%d}_{last_day:%Y%m%d}"
         )
         written.extend(plot_phase(
             selected, phase_mode, title, start, end, ylim, output_base, args.show

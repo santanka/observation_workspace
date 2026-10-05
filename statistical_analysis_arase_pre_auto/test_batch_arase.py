@@ -13,6 +13,18 @@ import batch_arase as batch
 
 
 class BatchAraseTests(unittest.TestCase):
+    def test_event_orbit_cli_is_opt_in_and_supports_backfill(self):
+        run_args = batch.build_parser().parse_args(["run"])
+        self.assertFalse(run_args.plot_event_orbits)
+        enabled = batch.build_parser().parse_args(["run", "--plot-event-orbits"])
+        self.assertTrue(enabled.plot_event_orbits)
+        backfill = batch.build_parser().parse_args([
+            "event-orbits", "--range-id", "7", "--png-only"
+        ])
+        self.assertEqual(backfill.command, "event-orbits")
+        self.assertEqual(backfill.range_id, [7])
+        self.assertTrue(backfill.png_only)
+
     def test_manifest(self):
         payload, ranges = batch.load_ranges(batch.DEFAULT_RANGES)
         self.assertGreater(len(ranges), 0)
@@ -320,6 +332,39 @@ class BatchAraseTests(unittest.TestCase):
         self.assertFalse(batch._att_files_cover_trange(
             files[:1], "2022-09-01T00:00:00", "2022-09-02T23:59:59"
         ))
+
+    def test_mgf_prefetch_uses_complete_local_hour_coverage(self):
+        files = [
+            "/data/erg_mgf_l2_64hz_dsi_2022090100_v01.cdf",
+            "/data/erg_mgf_l2_64hz_dsi_2022090101_v01.cdf",
+        ]
+        loader = mock.Mock(return_value=files)
+        result = batch._prefetch_mgf_files(
+            loader, ["2022-09-01T00:00:00", "2022-09-01T01:59:59"]
+        )
+        self.assertEqual(result, files)
+        loader.assert_called_once()
+        self.assertTrue(loader.call_args.kwargs["no_update"])
+
+    def test_mgf_prefetch_downloads_only_missing_hours(self):
+        local = ["/data/erg_mgf_l2_64hz_dsi_2022090100_v01.cdf"]
+        downloaded = ["/data/erg_mgf_l2_64hz_dsi_2022090101_v01.cdf"]
+        loader = mock.Mock(side_effect=[local, downloaded])
+        result = batch._prefetch_mgf_files(
+            loader, ["2022-09-01T00:00:00", "2022-09-01T01:59:59"]
+        )
+        self.assertEqual(result, local + downloaded)
+        self.assertEqual(loader.call_count, 2)
+        self.assertTrue(loader.call_args_list[0].kwargs["no_update"])
+        self.assertNotIn("no_update", loader.call_args_list[1].kwargs)
+
+    def test_mgf_prefetch_rejects_incomplete_combined_coverage(self):
+        local = ["/data/erg_mgf_l2_64hz_dsi_2022090100_v01.cdf"]
+        loader = mock.Mock(side_effect=[local, []])
+        with self.assertRaisesRegex(RuntimeError, "2022090101"):
+            batch._prefetch_mgf_files(
+                loader, ["2022-09-01T00:00:00", "2022-09-01T01:59:59"]
+            )
 
     def test_omni_hourly_request_uses_date_only(self):
         self.assertEqual(
