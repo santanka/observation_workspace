@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 import numpy as np
@@ -10,6 +11,7 @@ import pandas as pd
 import xarray as xr
 
 import batch_arase as batch
+import att_tolerant
 
 
 class BatchAraseTests(unittest.TestCase):
@@ -47,18 +49,95 @@ class BatchAraseTests(unittest.TestCase):
             ast.parse(source)
             transformed.append(source)
         ast.parse(batch.CONTEXT_CELL)
+        ast.parse(batch.BATCH_PREAMBLE)
         joined = "\n".join(transformed)
         self.assertIn("PLOT_WAVELET_MEDIAN_PSD = False", joined)
+        self.assertIn(batch.WAVELET_TEMP_DIR_SOURCE, joined)
+        self.assertNotIn(batch.WAVELET_SAVE_DIR_SOURCE, joined)
         self.assertIn("max_gap='5min'", joined)
         self.assertIn("bootstrap_samples_path =", joined)
         self.assertIn("/tmp/arase-auto-test", joined)
         self.assertNotIn(batch.NOTEBOOK_OUTPUT_ROOT, joined)
         self.assertEqual(joined.count("no_update=True"), 10)
-        self.assertIn("psp.projects.erg.att(", joined)
+        self.assertIn("load_att_tolerant(time_range", joined)
+        self.assertNotIn("psp.projects.erg.att(", joined)
+        self.assertIn("WAVELET_N_JOBS = 1", joined)
+        self.assertEqual(joined.count("n_cores = 1"), 2)
+        self.assertEqual(joined.count("n_workers = 1"), 1)
+        self.assertGreaterEqual(joined.count("n_jobs=1"), 2)
+        self.assertNotIn("n_jobs=-1", joined)
+        self.assertIn("ds_B_seg = batch_dedup_time(ds_B_seg)", joined)
+        self.assertIn("v_ion_fac = batch_dedup_time(v_ion_fac)", joined)
+        self.assertIn("nd_window = batch_rolling_window_samples", joined)
         self.assertIn("name_out='sundir_j2000'", joined)
         self.assertIn("noload=True", joined)
         for marker in batch.REQUIRED_NOTEBOOK_ANALYSIS_MARKERS:
             self.assertIn(marker, joined)
+
+        required_transform_markers = (
+            "max_gap='5min'",
+            "bootstrap_samples_path =",
+            "PLOT_WAVELET_MEDIAN_PSD = False",
+            "WAVELET_N_JOBS = 1",
+            "n_cores = 1",
+            "n_workers = 1",
+            "n_jobs=1",
+            batch.WAVELET_TEMP_DIR_SOURCE,
+            "load_att_tolerant(time_range",
+            "return batch_dedup_time(da).sel",
+            "ds_B_seg = batch_dedup_time(ds_B_seg)",
+            "v_ion_fac = batch_dedup_time(v_ion_fac)",
+            "nd_window = batch_rolling_window_samples",
+            "no_update=True",
+            "name_out='sundir_j2000'",
+            "noload=True",
+            *batch.REQUIRED_NOTEBOOK_ANALYSIS_MARKERS,
+        )
+        self.assertEqual(
+            [marker for marker in required_transform_markers if marker not in joined], []
+        )
+
+    def test_execute_notebook_preflight_accepts_current_transform(self):
+        args = SimpleNamespace(
+            notebook=batch.DEFAULT_NOTEBOOK,
+            start="2021-03-26T06:10:51.693925",
+            end="2021-03-26T06:17:31.693925",
+            output_root=Path("/tmp/arase-auto-preflight"),
+            spedas_dir=Path("/mnt/j/observation_data"),
+            kernel_name="python3",
+        )
+        with mock.patch("nbclient.NotebookClient.execute", return_value=None) as execute:
+            self.assertEqual(batch.execute_notebook_once(args), 0)
+        execute.assert_called_once_with()
+
+    def test_batch_preamble_deduplicates_time_and_guards_empty_log_axis(self):
+        namespace = {}
+        exec(compile(batch.BATCH_PREAMBLE, "<batch-preamble>", "exec"), namespace)
+        da = xr.DataArray(
+            [1.0, 2.0, 3.0],
+            dims="time",
+            coords={"time": np.array([
+                "2022-01-01T00:00:01", "2022-01-01T00:00:00",
+                "2022-01-01T00:00:01",
+            ], dtype="datetime64[ns]")},
+        )
+        deduped = namespace["batch_dedup_time"](da)
+        self.assertEqual(deduped.sizes["time"], 2)
+        self.assertTrue(np.all(np.diff(deduped.time.values) > np.timedelta64(0, "ns")))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            fig, ax = namespace["plt"].subplots()
+            ax.plot([0, 1], [-2, -1])
+            ax.set_yscale("log")
+            fig.tight_layout()
+            self.assertEqual(ax.get_yscale(), "linear")
+            self.assertEqual(len(ax.texts), 1)
+            path = Path(tmp) / "guarded.png"
+            fig.savefig(path)
+            namespace["plt"].close(fig)
+            self.assertTrue(path.is_file())
+            self.assertEqual(ax.get_yscale(), "linear")
+            self.assertEqual(len(ax.texts), 1)
 
     def test_auto_kaw_additional_selection_semantics(self):
         notebook = json.loads(batch.DEFAULT_NOTEBOOK.read_text())
@@ -509,6 +588,52 @@ class BatchAraseTests(unittest.TestCase):
             ),
             ("att_data_unavailable", False),
         )
+        self.assertEqual(
+            batch.classify_range_failure("nbclient.exceptions.DeadKernelError: Kernel died", 1),
+            ("dead_kernel_resource", True),
+        )
+        self.assertEqual(
+            batch.classify_range_failure(
+                "erg_att_l2\nValueError: could not convert string to float", 1
+            ),
+            ("invalid_att_format", False),
+        )
+        self.assertEqual(
+            batch.classify_range_failure(
+                "RuntimeError: Notebook batch transformation incomplete: ['marker']", 1
+            ),
+            ("batch_transform_incomplete", False),
+        )
+
+    def test_att_missing_delimiter_repair_is_narrow(self):
+        broken = "135.2657   26.2539-151515.3574       0.0"
+        repaired = att_tolerant.repair_missing_att_delimiter(broken)
+        self.assertEqual(
+            repaired.split(), ["135.2657", "26.2539", "-151515.3574", "0.0"]
+        )
+        self.assertEqual(
+            att_tolerant.repair_missing_att_delimiter("1.0  -2.0  3.0"),
+            "1.0  -2.0  3.0",
+        )
+
+    def test_att_parser_preserves_nan_and_rejects_invalid_numeric_tokens(self):
+        header = "ATT header\n" + "metadata\n" * 10
+        valid = "2020-03-01/00:00:00.0000 " + " ".join(["1.0000"] * 13)
+        fields = ["2.0000"] * 13
+        fields[8] = "NaN"  # column 9: spin phase
+        missing = "2020-03-01/00:00:08.0000 " + " ".join(fields)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "att.txt"
+            path.write_text(header + valid + "\n" + missing + "\n")
+            parsed = att_tolerant.parse_att_files([path], store=False)
+            phase = parsed["erg_att_spphase"]["y"]
+            self.assertEqual(phase[0], 1.0)
+            self.assertTrue(np.isnan(phase[1]))
+            self.assertEqual(len(parsed["erg_att_spphase"]["x"]), 2)
+            att_tolerant.validate_att_files([path])
+            path.write_text(header + valid + "\n" + missing.replace("NaN", "BAD_TOKEN") + "\n")
+            with self.assertRaises(ValueError):
+                att_tolerant.parse_att_files([path], store=False)
 
     def test_retryable_download_ranges_exclude_missing_remote(self):
         ranges = [{
@@ -548,7 +673,13 @@ class BatchAraseTests(unittest.TestCase):
                 "force": False,
             })()
 
+            wavelet_temp_dirs = []
+
             def fake_run_child(command, log_path, timeout, env):
+                wavelet_temp_dir = Path(env["ARASE_WAVELET_TEMP_DIR"])
+                self.assertTrue(wavelet_temp_dir.is_dir())
+                (wavelet_temp_dir / "temporary.nc").write_bytes(b"netcdf")
+                wavelet_temp_dirs.append(wavelet_temp_dir)
                 log_path.parent.mkdir(parents=True, exist_ok=True)
                 log_path.write_text(
                     "erg_interpolate_att\n"
@@ -566,6 +697,78 @@ class BatchAraseTests(unittest.TestCase):
             self.assertEqual(status["failure_class"], "att_download_transient")
             self.assertTrue(status["retryable"])
             self.assertEqual(status["attempt"], 1)
+            self.assertEqual(status["wavelet_cache_policy"], "temporary")
+            self.assertTrue(status["wavelet_temp_removed"])
+            self.assertEqual(len(wavelet_temp_dirs), 1)
+            self.assertFalse(wavelet_temp_dirs[0].exists())
+
+    def test_run_ranges_removes_wavelet_temp_after_complete_status(self):
+        _, ranges = batch.load_ranges(batch.DEFAULT_RANGES)
+        item = ranges[0]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            args = type("Args", (), {
+                "notebook": batch.DEFAULT_NOTEBOOK,
+                "state_dir": root / "state",
+                "output_root": root / "output",
+                "spedas_dir": root / "spedas",
+                "wavelet_scratch_root": root / "wavelet-scratch",
+                "kernel_name": "python3",
+                "analysis_timeout": 30,
+                "force": False,
+            })()
+            wavelet_temp_dirs = []
+
+            def fake_run_child(command, log_path, timeout, env):
+                wavelet_temp_dir = Path(env["ARASE_WAVELET_TEMP_DIR"])
+                (wavelet_temp_dir / "temporary.nc").write_bytes(b"netcdf")
+                wavelet_temp_dirs.append(wavelet_temp_dir)
+                summary = batch.expected_summary(item, args.output_root)
+                summary.parent.mkdir(parents=True, exist_ok=True)
+                summary.write_text("phase_mode,kappa_E\nall,1.0\n")
+                return 0
+
+            with mock.patch.object(batch, "run_child", side_effect=fake_run_child):
+                batch.run_ranges(args, [item], "ranges-hash")
+
+            status = json.loads(batch.status_path(args.state_dir, item).read_text())
+            self.assertEqual(status["status"], "complete")
+            self.assertEqual(status["wavelet_cache_policy"], "temporary")
+            self.assertTrue(status["wavelet_temp_removed"])
+            self.assertEqual(len(wavelet_temp_dirs), 1)
+            self.assertFalse(wavelet_temp_dirs[0].exists())
+
+    def test_run_ranges_marks_empty_input_as_terminal_excluded(self):
+        _, ranges = batch.load_ranges(batch.DEFAULT_RANGES)
+        item = ranges[0]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            args = type("Args", (), {
+                "notebook": batch.DEFAULT_NOTEBOOK,
+                "state_dir": root / "state",
+                "output_root": root / "output",
+                "spedas_dir": root / "spedas",
+                "wavelet_scratch_root": root / "wavelet-scratch",
+                "kernel_name": "python3",
+                "analysis_timeout": 30,
+                "force": False,
+            })()
+
+            def fake_run_child(command, log_path, timeout, env):
+                log_path.parent.mkdir(parents=True, exist_ok=True)
+                log_path.write_text(
+                    "ValueError: zero-size array to reduction operation minimum"
+                )
+                return 1
+
+            with mock.patch.object(batch, "run_child", side_effect=fake_run_child):
+                batch.run_ranges(args, [item], "ranges-hash")
+
+            status = json.loads(batch.status_path(args.state_dir, item).read_text())
+            self.assertEqual(status["status"], "excluded")
+            self.assertEqual(status["failure_class"], "empty_input_data")
+            self.assertFalse(status["retryable"])
+            self.assertNotIn(item, batch.noncomplete_ranges(args.state_dir, [item]))
 
     def test_postpass_retries_only_retryable_analysis_ranges(self):
         ranges = [
@@ -576,6 +779,7 @@ class BatchAraseTests(unittest.TestCase):
             state_dir = Path(tmp) / "state"
             batch.atomic_json(batch.status_path(state_dir, ranges[0]), {
                 "status": "failed", "retryable": True,
+                "failure_class": "dead_kernel_resource", "auto_retry_count": 0,
             })
             batch.atomic_json(batch.status_path(state_dir, ranges[1]), {
                 "status": "failed", "retryable": False,
@@ -591,13 +795,48 @@ class BatchAraseTests(unittest.TestCase):
             ):
                 batch.run_postpass_retries(args, ranges, "ranges-hash")
             sleep.assert_called_once_with(batch.POSTPASS_RETRY_DELAYS_SEC[0])
-            run_ranges.assert_called_once_with(args, [ranges[0]], "ranges-hash")
+            run_ranges.assert_called_once()
+            retry_args, retry_ranges, retry_hash = run_ranges.call_args.args
+            self.assertTrue(retry_args._auto_retry)
+            self.assertEqual(retry_ranges, [ranges[0]])
+            self.assertEqual(retry_hash, "ranges-hash")
+
+    def test_analysis_auto_retry_limit_and_noncomplete_selection(self):
+        ranges = [
+            {"range_id": 1}, {"range_id": 2}, {"range_id": 3}, {"range_id": 4},
+            {"range_id": 5},
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            state_dir = Path(tmp)
+            batch.atomic_json(batch.status_path(state_dir, ranges[0]), {
+                "status": "complete",
+            })
+            batch.atomic_json(batch.status_path(state_dir, ranges[1]), {
+                "status": "failed", "retryable": True,
+                "failure_class": "dead_kernel_resource", "auto_retry_count": 0,
+            })
+            batch.atomic_json(batch.status_path(state_dir, ranges[2]), {
+                "status": "failed", "retryable": True,
+                "failure_class": "dead_kernel_resource", "auto_retry_count": 1,
+            })
+            batch.atomic_json(batch.status_path(state_dir, ranges[4]), {
+                "status": "excluded", "failure_class": "empty_input_data",
+            })
+            self.assertEqual(
+                [r["range_id"] for r in batch.retryable_analysis_ranges(state_dir, ranges)],
+                [2],
+            )
+            self.assertEqual(
+                [r["range_id"] for r in batch.noncomplete_ranges(state_dir, ranges)],
+                [2, 3, 4],
+            )
 
     def test_download_worker_default(self):
         args = batch.build_parser().parse_args(["prefetch"])
         self.assertEqual(args.download_workers, batch.DEFAULT_DOWNLOAD_WORKERS)
         run_args = batch.build_parser().parse_args(["run"])
         self.assertEqual(run_args.postpass_retries, batch.POSTPASS_RETRIES)
+        self.assertFalse(run_args.noncomplete_only)
 
     def test_aggregate_excludes_unaccepted_old_summary(self):
         _, ranges = batch.load_ranges(batch.DEFAULT_RANGES)

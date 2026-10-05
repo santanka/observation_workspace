@@ -16,8 +16,10 @@ import json
 import os
 import re
 import signal
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -37,6 +39,12 @@ DEFAULT_STATE_ROOT = KAW_ROOT / "run_state"
 DEFAULT_OUTPUT_ROOT = KAW_ROOT / "auto"
 NOTEBOOK_OUTPUT_ROOT = "/mnt/j/statistical_analysis_arase/preanalysis/KAW_observation/E_B_ratio_Arase"
 DEFAULT_SPEDAS_DIR = Path("/mnt/j/observation_data")
+DEFAULT_WAVELET_SCRATCH_ROOT = Path("/tmp/arase_wavelet_spectra")
+WAVELET_SAVE_DIR_SOURCE = '''wavelet_save_dir = Path(
+    f"/mnt/j/observation_data/statistical_analysis_arase/"
+    f"Arase_analysis_save_data/wavelet_spectra/{folder_time_label}"
+)'''
+WAVELET_TEMP_DIR_SOURCE = 'wavelet_save_dir = Path(os.environ["ARASE_WAVELET_TEMP_DIR"])'
 
 ANALYSIS_TIMEOUT_SEC = 24 * 3600
 DOWNLOAD_TIMEOUT_SEC = 15 * 60
@@ -45,6 +53,16 @@ RETRY_DELAYS_SEC = (30, 120, 300)
 DEFAULT_DOWNLOAD_WORKERS = 8
 POSTPASS_RETRIES = 2
 POSTPASS_RETRY_DELAYS_SEC = (60, 300)
+ANALYSIS_AUTO_RETRY_LIMITS = {
+    "att_download_transient": 2,
+    "dead_kernel_resource": 1,
+}
+TERMINAL_EXCLUSION_CLASSES = {
+    "att_data_unavailable",
+    "no_overlapping_efd_mgf_waveform",
+    "no_valid_fac_segment",
+    "empty_input_data",
+}
 
 # The notebook is the analysis implementation, while this runner guarantees
 # that automated ranges are not processed with an older KAW-selection contract.
@@ -203,6 +221,9 @@ def run_child(command: list[str], log_path: Path, timeout: int, env: dict[str, s
             log.write(f"[{utc_now()}] timeout after {timeout} s\n")
             terminate_process_group(proc)
             return 124
+        except BaseException:
+            terminate_process_group(proc)
+            raise
 
 
 def transform_notebook_source(
@@ -218,7 +239,12 @@ def transform_notebook_source(
         count=1,
     )
     source = source.replace("PLOT_WAVELET_MEDIAN_PSD = True", "PLOT_WAVELET_MEDIAN_PSD = False")
+    source = source.replace("WAVELET_N_JOBS = 8", "WAVELET_N_JOBS = 1")
+    source = source.replace("n_cores = max(1, mp.cpu_count())", "n_cores = 1")
+    source = source.replace("n_workers = max(1, mp.cpu_count() - 1)", "n_workers = 1")
+    source = source.replace("n_jobs=-1", "n_jobs=1")
     source = source.replace(NOTEBOOK_OUTPUT_ROOT, str(output_root))
+    source = source.replace(WAVELET_SAVE_DIR_SOURCE, WAVELET_TEMP_DIR_SOURCE)
 
     # Network access is confined to the prefetch stage.
     replacements = {
@@ -243,10 +269,56 @@ def transform_notebook_source(
         "def load_arase_position_dsi(time_range):\n"
         "    ergpy.orb(trange=time_range, level='l2', datatype='def', no_update=True)",
         "def load_arase_position_dsi(time_range):\n"
-        "    psp.projects.erg.att(\n"
-        "        trange=time_range, level='l2', no_update=True,\n"
-        "    )\n"
+        "    from statistical_analysis_arase_pre_auto.att_tolerant import load_att_tolerant\n"
+        "    load_att_tolerant(time_range, level='l2', no_update=True)\n"
         "    ergpy.orb(trange=time_range, level='l2', datatype='def', no_update=True)",
+        1,
+    )
+
+    # Normalize time coordinates at interpolation boundaries that have failed
+    # on duplicated native samples in real ranges.
+    source = source.replace(
+        "    return da.sortby('time').sel(time=time_slice)",
+        "    return batch_dedup_time(da).sel(time=time_slice)",
+        1,
+    )
+    source = source.replace(
+        "    phase_rad = np.deg2rad(da_mgf_spin_phase_deg.interp(time=ds_B_seg.time))",
+        "    ds_B_seg = batch_dedup_time(ds_B_seg)\n"
+        "    spin_phase = batch_dedup_time(da_mgf_spin_phase_deg)\n"
+        "    phase_rad = np.deg2rad(spin_phase.interp(time=ds_B_seg.time))",
+        1,
+    )
+    source = source.replace(
+        "da_mgf_spin_phase_deg_interp = da_mgf_spin_phase_deg.interp(time=ds_B64_dsi_clean.time)",
+        "da_mgf_spin_phase_deg_interp = batch_dedup_time(da_mgf_spin_phase_deg).interp(\n"
+        "    time=batch_dedup_time(ds_B64_dsi_clean).time\n"
+        ")",
+        1,
+    )
+    source = source.replace(
+        "    v_sys = v_ion_fac.interp(time=v_sc_fac.time, method='linear') - v_sc_fac",
+        "    v_ion_fac = batch_dedup_time(v_ion_fac)\n"
+        "    v_sc_fac = batch_dedup_time(v_sc_fac)\n"
+        "    v_sys = v_ion_fac.interp(time=v_sc_fac.time, method='linear') - v_sc_fac",
+        1,
+    )
+
+    # Use a positive, robust rolling window even when the native cadence is
+    # sparse or contains duplicated/non-increasing timestamps.
+    source = source.replace(
+        "    dt_ND               = (ND_proton.time.data[1] - ND_proton.time.data[0]) / np.timedelta64(1, 's')\n\n"
+        "    ND_proton_mean  = ND_proton.rolling(time=int(100/dt_ND), center=True).mean()\n"
+        "    ND_Helium_mean  = ND_Helium.rolling(time=int(100/dt_ND), center=True).mean()\n"
+        "    ND_Oxygen_mean  = ND_Oxygen.rolling(time=int(100/dt_ND), center=True).mean()\n"
+        "    ND_ion_mean     = ND_ion.rolling(time=int(100/dt_ND), center=True).mean()\n"
+        "    ion_mass_mean   = ion_mass.rolling(time=int(100/dt_ND), center=True).mean()",
+        "    nd_window = batch_rolling_window_samples(ND_proton.time, duration_sec=100.0)\n\n"
+        "    ND_proton_mean  = batch_dedup_time(ND_proton).rolling(time=nd_window, center=True).mean()\n"
+        "    ND_Helium_mean  = batch_dedup_time(ND_Helium).rolling(time=nd_window, center=True).mean()\n"
+        "    ND_Oxygen_mean  = batch_dedup_time(ND_Oxygen).rolling(time=nd_window, center=True).mean()\n"
+        "    ND_ion_mean     = batch_dedup_time(ND_ion).rolling(time=nd_window, center=True).mean()\n"
+        "    ion_mass_mean   = batch_dedup_time(ion_mass).rolling(time=nd_window, center=True).mean()",
         1,
     )
     source = source.replace(
@@ -409,6 +481,76 @@ def transform_notebook_source(
         1,
     )
     return source
+
+
+BATCH_PREAMBLE = r'''
+# Batch-only runtime guards.  The source notebook remains unchanged.
+import matplotlib
+matplotlib.use("Agg", force=True)
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+
+plt.ioff()
+
+def batch_dedup_time(obj):
+    if "time" not in getattr(obj, "dims", ()):
+        return obj
+    ordered = obj.sortby("time")
+    index = pd.Index(pd.to_datetime(ordered.time.values))
+    keep = ~index.duplicated(keep="first")
+    return ordered.isel(time=np.flatnonzero(np.asarray(keep, dtype=bool)))
+
+def batch_rolling_window_samples(time_coord, duration_sec=100.0):
+    values = pd.DatetimeIndex(pd.to_datetime(time_coord.values)).to_numpy(
+        dtype="datetime64[ns]"
+    ).astype(np.int64)
+    positive_dt = np.diff(np.unique(values))
+    positive_dt = positive_dt[positive_dt > 0]
+    if positive_dt.size == 0:
+        return 1
+    cadence_sec = float(np.median(positive_dt)) / 1e9
+    if not np.isfinite(cadence_sec) or cadence_sec <= 0:
+        return 1
+    return max(1, int(round(float(duration_sec) / cadence_sec)))
+
+def _arase_guard_log_axes(fig):
+    for ax in fig.axes:
+        if ax.get_yscale() != "log":
+            continue
+        minpos = ax.yaxis.get_minpos()
+        if np.isfinite(minpos) and minpos > 0:
+            continue
+        ax.set_yscale("linear")
+        if not getattr(ax, "_arase_log_fallback_note", False):
+            ax.text(
+                0.99, 0.98, "No positive finite values for log scale",
+                ha="right", va="top", transform=ax.transAxes, fontsize=8,
+            )
+            ax._arase_log_fallback_note = True
+
+if not getattr(matplotlib.figure.Figure, "_arase_safe_rendering", False):
+    _arase_original_savefig = matplotlib.figure.Figure.savefig
+    _arase_original_tight_layout = matplotlib.figure.Figure.tight_layout
+    _arase_original_draw = matplotlib.figure.Figure.draw
+
+    def _arase_safe_savefig(self, *args, **kwargs):
+        _arase_guard_log_axes(self)
+        return _arase_original_savefig(self, *args, **kwargs)
+
+    def _arase_safe_tight_layout(self, *args, **kwargs):
+        _arase_guard_log_axes(self)
+        return _arase_original_tight_layout(self, *args, **kwargs)
+
+    def _arase_safe_draw(self, renderer):
+        _arase_guard_log_axes(self)
+        return _arase_original_draw(self, renderer)
+
+    matplotlib.figure.Figure.savefig = _arase_safe_savefig
+    matplotlib.figure.Figure.tight_layout = _arase_safe_tight_layout
+    matplotlib.figure.Figure.draw = _arase_safe_draw
+    matplotlib.figure.Figure._arase_safe_rendering = True
+'''
 
 
 CONTEXT_CELL = r'''
@@ -624,8 +766,17 @@ def execute_notebook_once(args: argparse.Namespace) -> int:
         "max_gap='5min'",
         "bootstrap_samples_path =",
         "PLOT_WAVELET_MEDIAN_PSD = False",
+        "WAVELET_N_JOBS = 1",
+        "n_cores = 1",
+        "n_workers = 1",
+        "n_jobs=1",
+        WAVELET_TEMP_DIR_SOURCE,
+        "load_att_tolerant(time_range",
+        "return batch_dedup_time(da).sel",
+        "ds_B_seg = batch_dedup_time(ds_B_seg)",
+        "v_ion_fac = batch_dedup_time(v_ion_fac)",
+        "nd_window = batch_rolling_window_samples",
         "no_update=True",
-        "psp.projects.erg.att(",
         "name_out='sundir_j2000'",
         "noload=True",
         *REQUIRED_NOTEBOOK_ANALYSIS_MARKERS,
@@ -633,6 +784,7 @@ def execute_notebook_once(args: argparse.Namespace) -> int:
     missing = [marker for marker in required_transform_markers if marker not in transformed_source]
     if missing:
         raise RuntimeError(f"Notebook batch transformation incomplete: {missing}")
+    notebook.cells.insert(0, nbformat.v4.new_code_cell(BATCH_PREAMBLE))
     notebook.cells.append(nbformat.v4.new_code_cell(CONTEXT_CELL))
 
     os.environ["SPEDAS_DATA_DIR"] = str(Path(args.spedas_dir))
@@ -1042,6 +1194,14 @@ def prefetch_one(args: argparse.Namespace) -> int:
     missing = [path for path in files if not Path(path).is_file()]
     if missing:
         raise RuntimeError(f"Downloader returned missing local files: {missing}")
+    if product == "att_l2":
+        # Direct script execution puts this directory, not ROOT, on sys.path.
+        # Also support package execution via python -m ...batch_arase.
+        if __package__:
+            from .att_tolerant import validate_att_files
+        else:
+            from att_tolerant import validate_att_files
+        validate_att_files(files)
     result = {
         "status": "complete", "product": product,
         "start_time": args.start, "end_time": args.end,
@@ -1246,8 +1406,20 @@ def classify_range_failure(log_text: str, returncode: int) -> tuple[str, bool]:
     )
     if att_network_error:
         return "att_download_transient", True
+    if "DeadKernelError" in log_text or "Kernel died" in log_text:
+        return "dead_kernel_resource", True
     if returncode == 124:
         return "analysis_timeout", False
+    if "Notebook batch transformation incomplete" in log_text:
+        return "batch_transform_incomplete", False
+    if "could not convert string to float" in log_text and "erg_att" in log_text:
+        return "invalid_att_format", False
+    if "Reindexing only valid with uniquely valued Index objects" in log_text:
+        return "duplicate_time_index", False
+    if "window must be > 0" in log_text:
+        return "invalid_cadence", False
+    if "Data cannot be log-scaled because all values are <= 0" in log_text:
+        return "plotting_log_scale", False
     if att_context and "No objects to concatenate" in log_text:
         return "att_data_unavailable", False
     if "No overlapping E64/B64 DSI segments" in log_text:
@@ -1277,7 +1449,34 @@ def retryable_analysis_ranges(
             status = json.loads(marker.read_text())
         except Exception:
             continue
-        if status.get("status") in {"failed", "timeout"} and status.get("retryable") is True:
+        failure_class = status.get("failure_class")
+        retry_limit = ANALYSIS_AUTO_RETRY_LIMITS.get(str(failure_class), 0)
+        auto_retry_count = int(status.get("auto_retry_count", 0))
+        if (
+            status.get("status") in {"failed", "timeout"}
+            and status.get("retryable") is True
+            and auto_retry_count < retry_limit
+        ):
+            selected.append(item)
+    return selected
+
+
+def noncomplete_ranges(
+    state_dir: Path, ranges: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Select missing/running/failed/timeout ranges without hash invalidation."""
+    selected = []
+    for item in ranges:
+        marker = status_path(state_dir, item)
+        if not marker.is_file():
+            selected.append(item)
+            continue
+        try:
+            status = json.loads(marker.read_text()).get("status")
+        except Exception:
+            selected.append(item)
+            continue
+        if status not in {"complete", "excluded"}:
             selected.append(item)
     return selected
 
@@ -1311,6 +1510,10 @@ def run_ranges(args: argparse.Namespace, ranges: list[dict[str, Any]], ranges_ha
     env["SPEDAS_DATA_DIR"] = str(args.spedas_dir)
     env.setdefault("MPLCONFIGDIR", str(ROOT / ".mplconfig"))
     env.update({"OMP_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1", "MKL_NUM_THREADS": "1"})
+    wavelet_scratch_root = Path(
+        getattr(args, "wavelet_scratch_root", DEFAULT_WAVELET_SCRATCH_ROOT)
+    ).resolve()
+    wavelet_scratch_root.mkdir(parents=True, exist_ok=True)
 
     for item in ranges:
         marker = status_path(state_dir, item)
@@ -1329,6 +1532,9 @@ def run_ranges(args: argparse.Namespace, ranges: list[dict[str, Any]], ranges_ha
         summary = expected_summary(item, Path(args.output_root))
         started = time.monotonic()
         attempt = int(prior_status.get("attempt", 0)) + 1
+        auto_retry_count = int(prior_status.get("auto_retry_count", 0))
+        if getattr(args, "_auto_retry", False):
+            auto_retry_count += 1
         base_status = {
             "range_id": int(item["range_id"]),
             "start_time": item["start_time"],
@@ -1338,6 +1544,7 @@ def run_ranges(args: argparse.Namespace, ranges: list[dict[str, Any]], ranges_ha
             "runner_sha256": runner_hash,
             "summary_path": str(summary),
             "attempt": attempt,
+            "auto_retry_count": auto_retry_count,
             "started_at": utc_now(),
         }
         atomic_json(marker, {**base_status, "status": "running"})
@@ -1350,32 +1557,62 @@ def run_ranges(args: argparse.Namespace, ranges: list[dict[str, Any]], ranges_ha
         ]
         log_path = state_dir / "logs" / "ranges" / f"range_{int(item['range_id']):03d}.log"
         log_offset = log_path.stat().st_size if log_path.is_file() else 0
-        code = run_child(command, log_path, args.analysis_timeout, env)
-        elapsed = time.monotonic() - started
-        terminal = {
-            **base_status, "returncode": code,
-            "elapsed_sec": elapsed, "finished_at": utc_now(),
-        }
-        if code == 0 and summary.is_file():
-            state = "complete"
-            terminal.update(status=state, retryable=False)
-        else:
-            state = "timeout" if code == 124 else "failed"
-            failure_class, retryable = classify_range_failure(
-                _log_text_since(log_path, log_offset), code
+        wavelet_temp_dir = Path(tempfile.mkdtemp(
+            prefix=f"range_{int(item['range_id']):03d}_",
+            dir=wavelet_scratch_root,
+        ))
+        range_env = env.copy()
+        range_env["ARASE_WAVELET_TEMP_DIR"] = str(wavelet_temp_dir)
+        terminal: dict[str, Any] | None = None
+        try:
+            code = run_child(command, log_path, args.analysis_timeout, range_env)
+            elapsed = time.monotonic() - started
+            terminal = {
+                **base_status, "returncode": code,
+                "elapsed_sec": elapsed, "finished_at": utc_now(),
+                "wavelet_cache_policy": "temporary",
+            }
+            if code == 0 and summary.is_file():
+                state = "complete"
+                terminal.update(status=state, retryable=False)
+            else:
+                state = "timeout" if code == 124 else "failed"
+                failure_class, retryable = classify_range_failure(
+                    _log_text_since(log_path, log_offset), code
+                )
+                if failure_class in TERMINAL_EXCLUSION_CLASSES:
+                    state = "excluded"
+                terminal.update(
+                    status=state, failure_class=failure_class, retryable=retryable
+                )
+            atomic_json(marker, terminal)
+            suffix = (
+                f", {terminal['failure_class']}, retryable={terminal['retryable']}"
+                if state != "complete" else ""
             )
-            terminal.update(
-                status=state, failure_class=failure_class, retryable=retryable
+            print(
+                f"range {item['range_id']}: {state} "
+                f"(attempt {attempt}, {elapsed / 60:.1f} min{suffix})"
             )
-        atomic_json(marker, terminal)
-        suffix = (
-            f", {terminal['failure_class']}, retryable={terminal['retryable']}"
-            if state != "complete" else ""
-        )
-        print(
-            f"range {item['range_id']}: {state} "
-            f"(attempt {attempt}, {elapsed / 60:.1f} min{suffix})"
-        )
+        finally:
+            try:
+                shutil.rmtree(wavelet_temp_dir)
+            except Exception as exc:
+                if terminal is not None:
+                    terminal.update(
+                        status="failed_cleanup",
+                        retryable=False,
+                        wavelet_temp_removed=False,
+                        wavelet_temp_dir=str(wavelet_temp_dir),
+                        wavelet_cleanup_error=f"{type(exc).__name__}: {exc}",
+                    )
+                    atomic_json(marker, terminal)
+                raise
+            else:
+                if terminal is not None:
+                    terminal["wavelet_temp_removed"] = True
+                    atomic_json(marker, terminal)
+                print(f"removed temporary wavelet data: {wavelet_temp_dir}")
 
 
 
@@ -1417,8 +1654,10 @@ def run_postpass_retries(
         # Do not run a range whose required download unit is still unresolved.
         direct_analysis_ids = analysis_ids - download_ids
         if direct_analysis_ids:
+            retry_args = copy.copy(args)
+            retry_args._auto_retry = True
             run_ranges(
-                args,
+                retry_args,
                 [by_id[range_id] for range_id in sorted(direct_analysis_ids)],
                 ranges_hash,
             )
@@ -1527,6 +1766,14 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--download-workers", type=int, default=DEFAULT_DOWNLOAD_WORKERS)
     run.add_argument("--analysis-timeout", type=int, default=ANALYSIS_TIMEOUT_SEC)
     run.add_argument(
+        "--noncomplete-only", action="store_true",
+        help="Run only ranges whose existing marker is not complete (or is missing)",
+    )
+    run.add_argument(
+        "--wavelet-scratch-root", type=Path, default=DEFAULT_WAVELET_SCRATCH_ROOT,
+        help="Temporary wavelet NetCDF root; each range directory is removed after analysis",
+    )
+    run.add_argument(
         "--postpass-retries", type=int, default=POSTPASS_RETRIES,
         help="Retry transient download/ATT failures after the first full pass",
     )
@@ -1580,6 +1827,10 @@ def main() -> int:
         ranges = selected_ranges(all_ranges, args.range_id)
         ranges_hash = file_sha256(Path(args.ranges))
         key = resolve_run_paths(args, ranges_hash)
+        if args.command == "run" and args.noncomplete_only:
+            original_count = len(ranges)
+            ranges = noncomplete_ranges(Path(args.state_dir), ranges)
+            print(f"noncomplete selection: {len(ranges)} / {original_count} ranges")
         print(f"dataset: {key}")
         print(f"state_dir: {args.state_dir}")
         print(f"output_root: {args.output_root}")

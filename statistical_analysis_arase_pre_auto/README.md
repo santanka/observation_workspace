@@ -104,9 +104,22 @@ download済みデータだけを使う場合:
   --download-workers 2
 ```
 
-既定では全rangeの一周後に、一時的なdownload失敗とATT通信失敗だけを最大2回再試行する。
-待機時間は60秒、300秒である。postpass retryを無効化する場合は
+既定では全rangeの一周後に、一時的なdownload失敗とATT通信失敗を最大2回再試行する。
+kernel deathは低並列設定のまま1回だけ自動再試行する。待機時間は60秒、300秒である。
+決定論的なdata gap、parse、重複時刻、plot入力エラーは同じ条件で反復しない。
+postpass retryを無効化する場合は
 `--postpass-retries 0`を指定する。
+
+runner hashが変わった後でも既存complete rangeを再実行せず、missing/running/failed/timeout
+markerだけを処理する場合:
+
+```bash
+.venv_pyspedas/bin/python statistical_analysis_arase_pre_auto/batch_arase.py run \
+  --noncomplete-only --skip-prefetch
+```
+
+空入力、E64/B64非重複、有効FAC segmentなし、ATT dataなしは`excluded`をterminal status
+として保存し、`--noncomplete-only`でも再実行しない。
 
 集約のみ:
 
@@ -196,8 +209,11 @@ north/south/standing/allは別々のPNG・PDFに保存する。
 JSONには`--ranges`を使い、masterや出力先を直接指定する場合は`--master`、
 `--output-dir`を使う。
 
-`--force` を付けると完了markerを無視して再実行する。wavelet cache自体の上書き設定は
-元Notebookの `WAVELET_OVERWRITE=False` を維持する。
+`--force` を付けると完了markerを無視して再実行する。batch実行中のwavelet NetCDFは
+`/tmp/arase_wavelet_spectra/` 以下のrange固有directoryに一時保存し、rangeのterminal
+statusを書いた後に、成功・失敗・timeoutによらず削除する。保存先の親directoryは
+`--wavelet-scratch-root` で変更できる。元Notebookを直接実行した場合の永続cache設定は
+変更しない。
 
 ## KAW occurrence probability図
 
@@ -297,16 +313,28 @@ blockのtrange終端は次unit境界の1秒前とし、不要な次fileを取得
 - block内の一部CDFだけが欠損しても、取得済みunitは完了として保存する
 - 欠損・失敗unitを必要とするrangeだけを`failed_download`にする
 - `missing_remote`は再利用し、通常の再実行では再取得しない。再確認には`--force`を使う
-- 既定では2 blockを並列downloadする。`--download-workers`で変更できる
+- 既定では8 blockを並列downloadする。`--download-workers`で変更できる
 - 各downloadは独立processなのでPySPEDAS/tplotのglobal stateを共有しない
 - 既定timeoutはblockごとに15分、最大3回retryする
 - range解析は1 rangeずつ独立kernel/processで実行する
+- ATTはdownload後に必要数値列をparse検証する。公式textでGZ-Deltaと負の補助値の間の
+  空白が欠ける既知形式は、raw fileを変更せずtolerant parserで分離する
+- ATT検証モジュールはscript直接実行と`python -m`実行の両方で読み込む。
+  workspaceの`PYTHONPATH`設定には依存しない
+- ATTの数値列は既存PySPEDASと同じ`astype(float)`で変換する。公式の`NaN`は欠損値のまま
+  保持し、不正な文字列は拒否する。日次file内のrange外欠損をparse失敗とは扱わない
 - 解析workerではATTをlocal cacheから明示的に読み込み、local ORBから太陽方向を事前生成した上で
   `erg_cotrans(..., noload=True)`を使い、内部の暗黙的なATT/ORB downloadを抑止する
 - 解析workerでは全loaderへ`no_update=True`を適用し、ネットワークへ接続しない
-- range失敗markerには`failure_class`、`retryable`、`attempt`を保存する
-- ATT remote-indexのtimeout・接続失敗だけを解析postpass retry対象とし、EFD/LEPi等の
-  データ欠損や有効segment不足は再試行しない
+- range失敗markerには`failure_class`、`retryable`、`attempt`、`auto_retry_count`を保存する
+- ATT remote-indexのtimeout・接続失敗とkernel deathだけを解析postpass retry対象とする。
+  kernel deathは1回、ATT通信失敗は2回までとし、EFD/LEPi等のデータ欠損や有効segment不足は
+  再試行しない
+- batch変換ではwavelet、ProcessPool、bootstrapの内部worker数を1に制限し、range内の
+  多重並列によるOOMを避ける
+- 補間前にtime座標をsort・deduplicateし、100秒rolling windowは正のmedian cadenceから
+  最低1 sampleとして計算する
+- batch plottingは非対話backendを使い、正の有限値がないlog軸はlinear軸へ退避して注記する
 - prefetchの`failed`/`timeout` unitも一周後に再取得し、成功したrangeだけ解析へ戻す。
   `missing_remote`はterminalとして再試行しない
 - timeout時はprocess groupを終了する
@@ -320,6 +348,8 @@ blockのtrange終端は次unit境界の1秒前とし、不要な次fileを取得
 
 ## 注意
 
-既存wavelet cacheは元Notebookのファイル存在判定に従って再利用される。古いcacheの
-科学的互換性を保証するmanifestはまだ存在しないため、最初の3-range検証では既存cacheを
-使った結果と新規計算結果を比較する必要がある。
+batch runnerは既存の永続wavelet cacheを再利用せず、各rangeでCWT/XWTを再計算する。
+NetCDFは後続セルのbacking storeとしてrange実行中だけ保持される。range終了時には
+Notebook kernel/processを先に終了してfile handleを閉じ、それから親runnerが一時directoryを
+削除する。batch runner自体がSIGKILLされた場合だけ清掃処理を実行できないため、再開前に
+`/tmp/arase_wavelet_spectra/` の残存directoryを確認する。
