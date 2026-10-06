@@ -34,6 +34,39 @@ class BatchAraseTests(unittest.TestCase):
         range_ids = [int(item["range_id"]) for item in ranges]
         self.assertEqual(range_ids, sorted(set(range_ids)))
 
+    def test_lepe_moment_call_applies_67ev_cut_without_changing_ion_range(self):
+        notebook = json.loads(batch.DEFAULT_NOTEBOOK.read_text())
+        sources = ["".join(c["source"]) for c in notebook["cells"] if c["cell_type"] == "code"]
+        moment_cell = next(s for s in sources if "psp.projects.erg.erg_lep_part_products(" in s)
+        products = mock.Mock()
+        namespace = {
+            "psp": SimpleNamespace(projects=SimpleNamespace(erg=SimpleNamespace(erg_lep_part_products=products))),
+            "LEPE_MOMENT_ENERGY_RANGE_EV": [67.0, np.inf],
+            "LEPI_PARTIAL_ENERGY_RANGE_EVQ": [30.0, 3e4],
+            "background_mag_tplot_name": "background",
+        }
+        exec(moment_cell, namespace)
+        self.assertEqual(products.call_args_list[0].kwargs["energy"], [67.0, np.inf])
+        for call in products.call_args_list[1:]:
+            self.assertEqual(call.kwargs["energy"], [30.0, 3e4])
+        # Use the installed limiter to verify the inclusion of the boundary.
+        import runpy
+        import importlib.util
+        package_dir = Path(importlib.util.find_spec("pyspedas").origin).parent
+        limiter = runpy.run_path(str(package_dir / "projects/erg/satellite/erg/particle/erg_pgs_limit_range.py"))["erg_pgs_limit_range"]
+        distribution = {"energy": np.array([66.999, 67.0, 67.001, 30000.0]), "bins": np.ones(4)}
+        result = limiter(distribution, energy=[67.0, np.inf])
+        np.testing.assert_array_equal(result["bins"], [0, 1, 1, 1])
+
+    def test_legacy_complete_marker_cannot_skip_new_analysis(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            summary = Path(tmp) / "summary.csv"
+            summary.touch()
+            status = {"status": "complete", "notebook_sha256": "n", "ranges_sha256": "r", "runner_sha256": "b", "summary_path": str(summary)}
+            self.assertFalse(batch.compatible_complete(status, "n", "r", "b"))
+            status["analysis_version"] = batch.ANALYSIS_VERSION
+            self.assertTrue(batch.compatible_complete(status, "n", "r", "b"))
+
     def test_notebook_transform_syntax(self):
         notebook = json.loads(batch.DEFAULT_NOTEBOOK.read_text())
         transformed = []
@@ -282,6 +315,7 @@ class BatchAraseTests(unittest.TestCase):
         self.assertEqual(key, "example_ranges_0123456789ab")
         self.assertEqual(args.state_dir, batch.DEFAULT_STATE_ROOT / key)
         self.assertEqual(args.output_root, batch.DEFAULT_OUTPUT_ROOT / key)
+        self.assertEqual(batch.DEFAULT_STATE_ROOT.parent.name, "lepe_ge67eV_v1")
 
     def test_product_download_ranges(self):
         tranges = batch.download_tranges(

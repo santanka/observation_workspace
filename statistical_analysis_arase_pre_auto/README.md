@@ -6,6 +6,10 @@
 
 ## 固定した解析条件
 
+- analysis version: `lepe_ge67eV_v1`
+- LEP-e moments: channel energyが67 eV以上のデータのみ。上限は追加せず、測定範囲を維持
+- LEP-i moments: 従来どおり30 eV/q--30 keV/q
+- phase summaryとrange markerに解析version、LEP-e下限・上限方針、PySPEDAS/NumPy/xarray versionを保存
 - component: toroidal
 - phase: north traveling / south traveling / standing / all
 - 最低データ量: 共通E/B fit-valid sampleが64以上
@@ -42,16 +46,16 @@ range JSONのファイル名と内容hashからdataset keyを作り、実行状�
 ```
 
 実行状態と全range集約は
-`/mnt/j/statistical_analysis_arase/preanalysis/KAW_observation/run_state/<dataset key>/`
+`/mnt/j/statistical_analysis_arase/preanalysis/KAW_observation/lepe_ge67eV_v1/run_state/<dataset key>/`
 に保存する。図とrange別解析結果は
-`/mnt/j/statistical_analysis_arase/preanalysis/KAW_observation/auto/<dataset key>/`
+`/mnt/j/statistical_analysis_arase/preanalysis/KAW_observation/lepe_ge67eV_v1/auto/<dataset key>/`
 に保存する。
 master tableには、このrunnerが `complete` と記録したrangeだけを含める。出力先に残る
 旧Notebook実行のsummaryは自動では混入しない。部分実行後もmasterは全rangeについて
 再構築される。
 
 ```text
-KAW_observation/run_state/<dataset key>/
+KAW_observation/lepe_ge67eV_v1/run_state/<dataset key>/
   downloads/<product>/<file-unit>.json
   downloads/_blocks/<product>/<block>_attempt_<n>.json
   ranges/range_<id>.json
@@ -63,6 +67,22 @@ KAW_observation/run_state/<dataset key>/
 ```
 
 ## 実行
+
+67 eV制限前の`auto`と`run_state`は`legacy/lepe_unrestricted_20261006/`へ移動し、
+旧パスには互換symlinkを残す。旧CSV/marker内の絶対パスは引き続き解決できる。
+元CDF、waveform、range manifestは移動しない。全plot scriptの既定保存先も新versionに従う。
+旧結果を比較用にplotするときは旧`--state-dir`と別の`--output-dir`を明示する。
+
+移動の確認（既定はdry run）:
+
+```bash
+.venv_pyspedas/bin/python statistical_analysis_arase_pre_auto/archive_legacy_lepe_results.py
+```
+
+新versionでの初回再解析では旧stateを指定せず、`--noncomplete-only`や`--force`を付けない。
+新しいstateには完了markerがないため全rangeが処理され、通常の再開時は同じversion・hashの
+完了rangeだけをskipする。旧条件で`insufficient_data`だったrangeも再評価する。
+入力fileが残っていれば`--skip-prefetch`で再利用できる。
 
 使用するPythonはNotebookと同じ仮想環境にする。
 
@@ -137,7 +157,7 @@ markerだけを処理する場合:
   statistical_analysis_arase_pre_auto/plot_orbit_coverage.py
 ```
 
-全candidateの図は`KAW_observation/auto/<dataset key>/orbit_coverage/`、phase別4図はその下の
+全candidateの図は`KAW_observation/lepe_ge67eV_v1/auto/<dataset key>/orbit_coverage/`、phase別4図はその下の
 `detected_phase/`へ保存する。各図のPNG、PDFと、再描画用の軌道NPZ cacheを保存する。
 図の期間、colormap、点サイズ、透明度、軸範囲・反転、colorbar
 tickは`plot_orbit_coverage.py`冒頭の`PLOT_CONFIG`で変更できる。軌道データを読み直す場合は
@@ -182,7 +202,7 @@ manifest中の全rangeを対象とする。`--completed-only`、反復可能な`
 `--png-only`、`--refresh-cache`をbackfill subcommandで使用できる。既存図はskipするため、
 中断後に同じcommandで再開でき、上書きには`--force`を使う。
 
-出力は`KAW_observation/auto/<dataset key>/event_orbits/range_NNN/`に保存する。GSM・SM
+出力は`KAW_observation/lepe_ge67eV_v1/auto/<dataset key>/event_orbits/range_NNN/`に保存する。GSM・SM
 それぞれのPNG/PDFと、manifest hashで検証する共通ORB cacheを生成する。途中点間隔、色、
 marker、線幅、軸範囲、画像形式は`plot_event_orbits.py`冒頭の`PLOT_CONFIG`で変更できる。
 短いrangeでは地球スケール上でstart/endが重なるため、上段を地球を含む全体図、下段を
@@ -204,7 +224,7 @@ north/south/standing/allは別々のPNG・PDFに保存する。
   statistical_analysis_arase_pre_auto/plot_kappa_time_series.py
 ```
 
-出力先は`KAW_observation/auto/<dataset key>/kappa_time_series/`。色、marker、errorbar、
+出力先は`KAW_observation/lepe_ge67eV_v1/auto/<dataset key>/kappa_time_series/`。色、marker、errorbar、
 図サイズ、共通y軸範囲、表示期間はscript冒頭の`PLOT_CONFIG`で調整できる。別のranges
 JSONには`--ranges`を使い、masterや出力先を直接指定する場合は`--master`、
 `--output-dir`を使う。
@@ -241,7 +261,7 @@ allだけを作成する場合:
 停止する。local dataだけを使う場合は`--no-download`、ORB cacheを再構築する場合は
 `--refresh-dwelling-cache`を指定する。
 
-出力先は`KAW_observation/auto/<dataset key>/occurrence_probability/`で、各図のPNG、
+出力先は`KAW_observation/lepe_ge67eV_v1/auto/<dataset key>/occurrence_probability/`で、各図のPNG、
 PDF、各binの時間・確率・range数を含むCSV、再利用用ORB dwelling cacheを保存する。
 確率の分母・分子、代表位置、
 bin境界、coverage maskの定義は

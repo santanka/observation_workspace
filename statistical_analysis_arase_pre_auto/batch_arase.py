@@ -35,9 +35,11 @@ DEFAULT_RANGES = Path(
     "Arase_valid_time_ranges_20220901_000000_to_20221001_000000.json"
 )
 KAW_ROOT = Path("/mnt/j/statistical_analysis_arase/preanalysis/KAW_observation")
-DEFAULT_STATE_ROOT = KAW_ROOT / "run_state"
-DEFAULT_OUTPUT_ROOT = KAW_ROOT / "auto"
-NOTEBOOK_OUTPUT_ROOT = "/mnt/j/statistical_analysis_arase/preanalysis/KAW_observation/E_B_ratio_Arase"
+ANALYSIS_VERSION = "lepe_ge67eV_v1"
+ANALYSIS_ROOT = KAW_ROOT / ANALYSIS_VERSION
+DEFAULT_STATE_ROOT = ANALYSIS_ROOT / "run_state"
+DEFAULT_OUTPUT_ROOT = ANALYSIS_ROOT / "auto"
+NOTEBOOK_OUTPUT_ROOT = str(ANALYSIS_ROOT / "E_B_ratio_Arase")
 DEFAULT_SPEDAS_DIR = Path("/mnt/j/observation_data")
 DEFAULT_WAVELET_SCRATCH_ROOT = Path("/tmp/arase_wavelet_spectra")
 WAVELET_SAVE_DIR_SOURCE = '''wavelet_save_dir = Path(
@@ -67,6 +69,9 @@ TERMINAL_EXCLUSION_CLASSES = {
 # The notebook is the analysis implementation, while this runner guarantees
 # that automated ranges are not processed with an older KAW-selection contract.
 REQUIRED_NOTEBOOK_ANALYSIS_MARKERS = (
+    'ANALYSIS_VERSION = "lepe_ge67eV_v1"',
+    "LEPE_MOMENT_ENERGY_RANGE_EV = [67.0, np.inf]",
+    "energy=LEPE_MOMENT_ENERGY_RANGE_EV,",
     "EB_SPIN_LOGRMSE_MAX_DEX = 0.75",
     "EB_RESIDUAL_PEAK_MAX_DEX = 0.70",
     "logrmse_E_spinband_kaw",
@@ -182,6 +187,7 @@ def compatible_complete(
 ) -> bool:
     return (
         status.get("status") == "complete"
+        and status.get("analysis_version") == ANALYSIS_VERSION
         and status.get("notebook_sha256") == notebook_hash
         and status.get("ranges_sha256") == ranges_hash
         and status.get("runner_sha256") == runner_hash
@@ -1502,6 +1508,11 @@ def retryable_download_range_ids(
 
 
 def run_ranges(args: argparse.Namespace, ranges: list[dict[str, Any]], ranges_hash: str) -> None:
+    from importlib.metadata import version
+
+    package_versions = {
+        f"{name}_version": version(name) for name in ("pyspedas", "numpy", "xarray")
+    }
     notebook = Path(args.notebook).resolve()
     notebook_hash = file_sha256(notebook)
     runner_hash = file_sha256(Path(__file__).resolve())
@@ -1536,6 +1547,11 @@ def run_ranges(args: argparse.Namespace, ranges: list[dict[str, Any]], ranges_ha
         if getattr(args, "_auto_retry", False):
             auto_retry_count += 1
         base_status = {
+            **package_versions,
+            "analysis_version": ANALYSIS_VERSION,
+            "lepe_moment_energy_min_eV": 67.0,
+            "lepe_moment_energy_max_eV": None,
+            "lepe_moment_energy_upper_policy": "all_measured_channels",
             "range_id": int(item["range_id"]),
             "start_time": item["start_time"],
             "end_time": item["end_time"],
@@ -1748,11 +1764,11 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--range-id", type=int, action="append")
         p.add_argument(
             "--state-dir", type=Path, default=None,
-            help="Default: KAW_observation/run_state/<range-manifest key>",
+            help=f"Default: KAW_observation/{ANALYSIS_VERSION}/run_state/<range-manifest key>",
         )
         p.add_argument(
             "--output-root", type=Path, default=None,
-            help="Default: KAW_observation/auto/<range-manifest key>",
+            help=f"Default: KAW_observation/{ANALYSIS_VERSION}/auto/<range-manifest key>",
         )
         p.add_argument("--spedas-dir", type=Path, default=DEFAULT_SPEDAS_DIR)
         p.add_argument("--force", action="store_true")
