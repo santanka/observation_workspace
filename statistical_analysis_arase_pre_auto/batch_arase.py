@@ -35,7 +35,7 @@ DEFAULT_RANGES = Path(
     "Arase_valid_time_ranges_20220901_000000_to_20221001_000000.json"
 )
 KAW_ROOT = Path("/mnt/j/statistical_analysis_arase/preanalysis/KAW_observation")
-ANALYSIS_VERSION = "lepe_ge67eV_v1"
+ANALYSIS_VERSION = "lepe_ge67eV_vion_v2"
 ANALYSIS_ROOT = KAW_ROOT / ANALYSIS_VERSION
 DEFAULT_STATE_ROOT = ANALYSIS_ROOT / "run_state"
 DEFAULT_OUTPUT_ROOT = ANALYSIS_ROOT / "auto"
@@ -69,8 +69,10 @@ TERMINAL_EXCLUSION_CLASSES = {
 # The notebook is the analysis implementation, while this runner guarantees
 # that automated ranges are not processed with an older KAW-selection contract.
 REQUIRED_NOTEBOOK_ANALYSIS_MARKERS = (
-    'ANALYSIS_VERSION = "lepe_ge67eV_v1"',
+    'ANALYSIS_VERSION = "lepe_ge67eV_vion_v2"',
     "LEPE_MOMENT_ENERGY_RANGE_EV = [67.0, np.inf]",
+    "v_sys_fac = v_ion_fac.rename('v_sys_fac')",
+    "'system_velocity_policy': 'observed_partial_ion_moment_no_spacecraft_subtraction'",
     "energy=LEPE_MOMENT_ENERGY_RANGE_EV,",
     "EB_SPIN_LOGRMSE_MAX_DEX = 0.75",
     "EB_RESIDUAL_PEAK_MAX_DEX = 0.70",
@@ -303,10 +305,9 @@ def transform_notebook_source(
         1,
     )
     source = source.replace(
-        "    v_sys = v_ion_fac.interp(time=v_sc_fac.time, method='linear') - v_sc_fac",
-        "    v_ion_fac = batch_dedup_time(v_ion_fac)\n"
-        "    v_sc_fac = batch_dedup_time(v_sc_fac)\n"
-        "    v_sys = v_ion_fac.interp(time=v_sc_fac.time, method='linear') - v_sc_fac",
+        "v_sys_fac = v_ion_fac.rename('v_sys_fac')",
+        "v_ion_fac = batch_dedup_time(v_ion_fac)\n"
+        "v_sys_fac = v_ion_fac.rename('v_sys_fac')",
         1,
     )
 
@@ -1115,8 +1116,37 @@ def _att_files_cover_trange(files: list[str], start: str, end: str) -> bool:
     return not _missing_file_tokens(files, start, end, "day")
 
 
+def _prefetch_updated_files(loader, start: str, end: str, cadence: str) -> list[str]:
+    """Try remote updates first, then fill missing units from the local cache."""
+    update_error = None
+    try:
+        updated = _normalize_download_files(loader(no_update=False))
+    except Exception as exc:
+        update_error = exc
+        updated = []
+        print(f"Remote update failed; checking local cache: {exc!r}", file=sys.stderr)
+    # A returned pathname alone is not evidence of an available file.
+    updated = list(dict.fromkeys(path for path in updated if Path(path).is_file()))
+    missing = _missing_file_tokens(updated, start, end, cadence)
+    if not missing:
+        return updated
+
+    local = _normalize_download_files(loader(no_update=True))
+    fallback = list(dict.fromkeys(
+        path for path in local
+        if Path(path).is_file() and any(token in Path(path).name for token in missing)
+    ))
+    if fallback:
+        print("Using local cache for missing update units: " + ", ".join(fallback),
+              file=sys.stderr)
+    files = list(dict.fromkeys(updated + fallback))
+    if not files and update_error is not None:
+        raise update_error
+    return files
+
+
 def _prefetch_mgf_files(mgf_loader, trange: list[str]) -> list[str]:
-    """Use complete local hourly MGF coverage before contacting the server."""
+    """Update hourly MGF first and require complete updated/cache coverage."""
     kwargs = {
         "trange": trange,
         "level": "l2",
@@ -1125,12 +1155,10 @@ def _prefetch_mgf_files(mgf_loader, trange: list[str]) -> list[str]:
         "get_support_data": True,
         "downloadonly": True,
     }
-    local_files = _normalize_download_files(mgf_loader(**kwargs, no_update=True))
-    if not _missing_file_tokens(local_files, trange[0], trange[1], "hour"):
-        return local_files
-
-    downloaded = _normalize_download_files(mgf_loader(**kwargs))
-    files = list(dict.fromkeys(local_files + downloaded))
+    files = _prefetch_updated_files(
+        lambda **options: mgf_loader(**kwargs, **options),
+        trange[0], trange[1], "hour",
+    )
     missing = _missing_file_tokens(files, trange[0], trange[1], "hour")
     if missing:
         raise RuntimeError(
@@ -1149,49 +1177,48 @@ def prefetch_one(args: argparse.Namespace) -> int:
     product = args.product
     trange = _product_request_trange(product, args.start, args.end)
 
-    def prefetch_att() -> list[str]:
-        local_files = _normalize_download_files(psp.projects.erg.att(
-            trange=trange, level="l2", downloadonly=True, no_update=True,
-        ))
-        if _att_files_cover_trange(local_files, args.start, args.end):
-            return local_files
-        downloaded = _normalize_download_files(psp.projects.erg.att(
-            trange=trange, level="l2", downloadonly=True,
-        ))
-        return list(dict.fromkeys(local_files + downloaded))
-
     calls = {
-        "pwe_efd_l2_64": lambda: ergpy.pwe_efd(
+        "pwe_efd_l2_64": lambda **options: ergpy.pwe_efd(
             trange=trange, level="l2", datatype="64", coord="dsi",
-            get_support_data=True, downloadonly=True,
+            get_support_data=True, downloadonly=True, **options,
         ),
-        "mgf_l2_64hz": lambda: _prefetch_mgf_files(ergpy.mgf, trange),
-        "orb_l2_def": lambda: ergpy.orb(
-            trange=trange, level="l2", datatype="def", downloadonly=True,
+        "mgf_l2_64hz": lambda **options: ergpy.mgf(
+            trange=trange, level="l2", datatype="64hz", coord="dsi",
+            get_support_data=True, downloadonly=True, **options,
         ),
-        "att_l2": prefetch_att,
-        "lepe_l2_3dflux": lambda: ergpy.lepe(
-            trange=trange, datatype="3dflux", level="l2", downloadonly=True,
+        "orb_l2_def": lambda **options: ergpy.orb(
+            trange=trange, level="l2", datatype="def", downloadonly=True, **options,
         ),
-        "lepi_l2_3dflux": lambda: ergpy.lepi(
-            trange=trange, datatype="3dflux", level="l2", downloadonly=True,
+        "att_l2": lambda **options: psp.projects.erg.att(
+            trange=trange, level="l2", downloadonly=True, **options,
         ),
-        "pwe_hfa_l3": lambda: ergpy.pwe_hfa(
-            trange=trange, level="l3", downloadonly=True,
+        "lepe_l2_3dflux": lambda **options: ergpy.lepe(
+            trange=trange, datatype="3dflux", level="l2", downloadonly=True, **options,
         ),
-        "pwe_hfa_l2": lambda: ergpy.pwe_hfa(
-            trange=trange, level="l2", downloadonly=True,
+        "lepi_l2_3dflux": lambda **options: ergpy.lepi(
+            trange=trange, datatype="3dflux", level="l2", downloadonly=True, **options,
         ),
-        "omni_1min": lambda: psp.projects.omni.data(
-            trange=trange, datatype="1min", downloadonly=True,
+        "pwe_hfa_l3": lambda **options: ergpy.pwe_hfa(
+            trange=trange, level="l3", downloadonly=True, **options,
         ),
-        "omni_hourly": lambda: psp.projects.omni.data(
-            trange=trange, datatype="hourly", downloadonly=True,
+        "pwe_hfa_l2": lambda **options: ergpy.pwe_hfa(
+            trange=trange, level="l2", downloadonly=True, **options,
+        ),
+        "omni_1min": lambda **options: psp.projects.omni.data(
+            trange=trange, datatype="1min", downloadonly=True, **options,
+        ),
+        "omni_hourly": lambda **options: psp.projects.omni.data(
+            trange=trange, datatype="hourly", downloadonly=True, **options,
         ),
     }
     if product not in calls:
         raise ValueError(f"Unknown product: {product}")
-    files = _normalize_download_files(calls[product]())
+    if product == "mgf_l2_64hz":
+        files = _prefetch_mgf_files(ergpy.mgf, trange)
+    else:
+        files = _prefetch_updated_files(
+            calls[product], args.start, args.end, PRODUCT_SPECS[product].cadence,
+        )
     if not files:
         raise RuntimeError(
             f"No downloaded/local files returned for {product} "
@@ -1549,6 +1576,7 @@ def run_ranges(args: argparse.Namespace, ranges: list[dict[str, Any]], ranges_ha
         base_status = {
             **package_versions,
             "analysis_version": ANALYSIS_VERSION,
+            "system_velocity_policy": "observed_partial_ion_moment_no_spacecraft_subtraction",
             "lepe_moment_energy_min_eV": 67.0,
             "lepe_moment_energy_max_eV": None,
             "lepe_moment_energy_upper_policy": "all_measured_channels",

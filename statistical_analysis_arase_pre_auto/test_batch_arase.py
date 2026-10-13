@@ -1,5 +1,6 @@
 import ast
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -58,11 +59,35 @@ class BatchAraseTests(unittest.TestCase):
         result = limiter(distribution, energy=[67.0, np.inf])
         np.testing.assert_array_equal(result["bins"], [0, 1, 1, 1])
 
+    def test_system_velocity_uses_native_ion_moment_without_spacecraft_input(self):
+        notebook = json.loads(batch.DEFAULT_NOTEBOOK.read_text())
+        source = next(
+            "".join(c["source"]) for c in notebook["cells"]
+            if c["cell_type"] == "code"
+            and "v_sys_fac = v_ion_fac.rename('v_sys_fac')" in "".join(c["source"])
+        )
+        time = pd.to_datetime(["2020-01-01T00:00:00", "2020-01-01T00:00:08", "2020-01-01T00:00:16"])
+        ion = xr.DataArray(
+            [[1000.0, -2000.0, 3000.0], [np.nan, 4000.0, -5000.0], [-6000.0, 7000.0, 8000.0]],
+            dims=("time", "component"),
+            coords={"time": time, "component": ["x", "y", "z"]},
+            attrs={"units": "m/s", "partial_moment_note": "30 eV/q--30 keV/q"},
+            name="v_ion_fac",
+        )
+        for code in [source, batch.transform_notebook_source(source, "2020-01-01", "2020-01-02", Path("/tmp/ion-test"))]:
+            namespace = {"v_ion_fac": ion, "print": lambda *args: None}
+            exec(batch.BATCH_PREAMBLE, namespace)
+            exec(code, namespace)
+            xr.testing.assert_identical(namespace["v_sys_fac"], ion.rename("v_sys_fac"))
+            self.assertEqual(ion.name, "v_ion_fac")
+
     def test_legacy_complete_marker_cannot_skip_new_analysis(self):
         with tempfile.TemporaryDirectory() as tmp:
             summary = Path(tmp) / "summary.csv"
             summary.touch()
             status = {"status": "complete", "notebook_sha256": "n", "ranges_sha256": "r", "runner_sha256": "b", "summary_path": str(summary)}
+            self.assertFalse(batch.compatible_complete(status, "n", "r", "b"))
+            status["analysis_version"] = "lepe_ge67eV_v1"
             self.assertFalse(batch.compatible_complete(status, "n", "r", "b"))
             status["analysis_version"] = batch.ANALYSIS_VERSION
             self.assertTrue(batch.compatible_complete(status, "n", "r", "b"))
@@ -315,7 +340,7 @@ class BatchAraseTests(unittest.TestCase):
         self.assertEqual(key, "example_ranges_0123456789ab")
         self.assertEqual(args.state_dir, batch.DEFAULT_STATE_ROOT / key)
         self.assertEqual(args.output_root, batch.DEFAULT_OUTPUT_ROOT / key)
-        self.assertEqual(batch.DEFAULT_STATE_ROOT.parent.name, "lepe_ge67eV_v1")
+        self.assertEqual(batch.DEFAULT_STATE_ROOT.parent.name, "lepe_ge67eV_vion_v2")
 
     def test_product_download_ranges(self):
         tranges = batch.download_tranges(
@@ -446,38 +471,159 @@ class BatchAraseTests(unittest.TestCase):
             files[:1], "2022-09-01T00:00:00", "2022-09-02T23:59:59"
         ))
 
-    def test_mgf_prefetch_uses_complete_local_hour_coverage(self):
-        files = [
-            "/data/erg_mgf_l2_64hz_dsi_2022090100_v01.cdf",
-            "/data/erg_mgf_l2_64hz_dsi_2022090101_v01.cdf",
-        ]
-        loader = mock.Mock(return_value=files)
-        result = batch._prefetch_mgf_files(
-            loader, ["2022-09-01T00:00:00", "2022-09-01T01:59:59"]
-        )
-        self.assertEqual(result, files)
-        loader.assert_called_once()
-        self.assertTrue(loader.call_args.kwargs["no_update"])
+    def test_prefetch_update_success_does_not_query_cache(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            updated = Path(tmp) / "erg_20220901_v02.cdf"
+            updated.touch()
+            loader = mock.Mock(return_value=[str(updated)])
+            self.assertEqual(batch._prefetch_updated_files(
+                loader, "2022-09-01", "2022-09-01T23:59:59", "day"
+            ), [str(updated)])
+            loader.assert_called_once_with(no_update=False)
 
-    def test_mgf_prefetch_downloads_only_missing_hours(self):
-        local = ["/data/erg_mgf_l2_64hz_dsi_2022090100_v01.cdf"]
-        downloaded = ["/data/erg_mgf_l2_64hz_dsi_2022090101_v01.cdf"]
-        loader = mock.Mock(side_effect=[local, downloaded])
-        result = batch._prefetch_mgf_files(
-            loader, ["2022-09-01T00:00:00", "2022-09-01T01:59:59"]
-        )
-        self.assertEqual(result, local + downloaded)
-        self.assertEqual(loader.call_count, 2)
-        self.assertTrue(loader.call_args_list[0].kwargs["no_update"])
-        self.assertNotIn("no_update", loader.call_args_list[1].kwargs)
+    def test_prefetch_partial_update_fills_only_missing_units(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            files = [Path(tmp) / name for name in (
+                "erg_20220901_v02.cdf", "erg_20220901_v01.cdf",
+                "erg_20220902_v01.cdf",
+            )]
+            for path in files:
+                path.touch()
+            loader = mock.Mock(side_effect=[
+                [str(files[0])], [str(files[1]), str(files[2])],
+            ])
+            self.assertEqual(batch._prefetch_updated_files(
+                loader, "2022-09-01", "2022-09-02T23:59:59", "day"
+            ), [str(files[0]), str(files[2])])
+            self.assertEqual(loader.call_args_list, [
+                mock.call(no_update=False), mock.call(no_update=True),
+            ])
+
+    def test_prefetch_empty_or_exception_update_uses_existing_cache(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            local = Path(tmp) / "erg_20220901_v01.cdf"
+            local.touch()
+            for update in ([], TimeoutError("remote index timeout")):
+                with self.subTest(update=update):
+                    loader = mock.Mock(side_effect=[update, [str(local)]])
+                    self.assertEqual(batch._prefetch_updated_files(
+                        loader, "2022-09-01", "2022-09-01T23:59:59", "day"
+                    ), [str(local)])
+                    self.assertEqual(loader.call_args_list, [
+                        mock.call(no_update=False), mock.call(no_update=True),
+                    ])
+
+    def test_prefetch_missing_path_is_not_accepted_as_an_update(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            local = Path(tmp) / "erg_20220901_v01.cdf"
+            local.touch()
+            loader = mock.Mock(side_effect=[
+                [str(Path(tmp) / "erg_20220901_v02.cdf")], [str(local)],
+            ])
+            self.assertEqual(batch._prefetch_updated_files(
+                loader, "2022-09-01", "2022-09-01T23:59:59", "day"
+            ), [str(local)])
+
+    def test_prefetch_without_cache_preserves_update_exception(self):
+        error = TimeoutError("remote index timeout")
+        loader = mock.Mock(side_effect=[error, []])
+        with self.assertRaises(TimeoutError) as caught:
+            batch._prefetch_updated_files(
+                loader, "2022-09-01", "2022-09-01T23:59:59", "day"
+            )
+        self.assertIs(caught.exception, error)
+
+    def test_prefetch_cache_coverage_supports_omni_file_cadences(self):
+        for cadence, day, token in (
+            ("month", "2022-09-15", "20220901"),
+            ("half_year", "2022-09-15", "20220701"),
+        ):
+            with self.subTest(cadence=cadence), tempfile.TemporaryDirectory() as tmp:
+                local = Path(tmp) / f"omni_{token}_v01.cdf"
+                local.touch()
+                loader = mock.Mock(side_effect=[[], [str(local)]])
+                self.assertEqual(batch._prefetch_updated_files(
+                    loader, day, day + "T23:59:59", cadence
+                ), [str(local)])
+
+    def test_mgf_prefetch_updates_even_with_complete_cache(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            paths = [Path(tmp) / f"erg_mgf_{token}_v01.cdf" for token in (
+                "2022090100", "2022090101",
+            )]
+            for path in paths:
+                path.touch()
+            files = [str(path) for path in paths]
+            loader = mock.Mock(side_effect=[[], files])
+            self.assertEqual(batch._prefetch_mgf_files(
+                loader, ["2022-09-01T00:00:00", "2022-09-01T01:59:59"]
+            ), files)
+            self.assertFalse(loader.call_args_list[0].kwargs["no_update"])
+            self.assertTrue(loader.call_args_list[1].kwargs["no_update"])
+
+    def test_mgf_prefetch_combines_updated_and_missing_cached_hours(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            paths = [Path(tmp) / f"erg_mgf_{token}_v01.cdf" for token in (
+                "2022090100", "2022090101",
+            )]
+            for path in paths:
+                path.touch()
+            files = [str(path) for path in paths]
+            loader = mock.Mock(side_effect=[[files[0]], [files[1]]])
+            self.assertEqual(batch._prefetch_mgf_files(
+                loader, ["2022-09-01T00:00:00", "2022-09-01T01:59:59"]
+            ), files)
 
     def test_mgf_prefetch_rejects_incomplete_combined_coverage(self):
-        local = ["/data/erg_mgf_l2_64hz_dsi_2022090100_v01.cdf"]
-        loader = mock.Mock(side_effect=[local, []])
-        with self.assertRaisesRegex(RuntimeError, "2022090101"):
-            batch._prefetch_mgf_files(
-                loader, ["2022-09-01T00:00:00", "2022-09-01T01:59:59"]
-            )
+        with tempfile.TemporaryDirectory() as tmp:
+            local = Path(tmp) / "erg_mgf_2022090100_v01.cdf"
+            local.touch()
+            loader = mock.Mock(side_effect=[[], [str(local)]])
+            with self.assertRaisesRegex(RuntimeError, "2022090101"):
+                batch._prefetch_mgf_files(
+                    loader, ["2022-09-01T00:00:00", "2022-09-01T01:59:59"]
+                )
+
+    def test_prefetch_one_all_products_update_then_fallback(self):
+        for product in batch.PRODUCTS:
+            with self.subTest(product=product), tempfile.TemporaryDirectory() as tmp:
+                cadence = batch.PRODUCT_SPECS[product].cadence
+                token = {"hour": "2022090100", "day": "20220901",
+                         "month": "20220901", "half_year": "20220701"}[cadence]
+                local = Path(tmp) / f"test_{product}_{token}_v01.cdf"
+                local.touch()
+                loader = mock.Mock(side_effect=[[], [str(local)]])
+                erg = SimpleNamespace(**{name: loader for name in (
+                    "pwe_efd", "mgf", "orb", "lepe", "lepi", "pwe_hfa",
+                )})
+                psp = SimpleNamespace(projects=SimpleNamespace(
+                    erg=SimpleNamespace(att=loader), omni=SimpleNamespace(data=loader),
+                ))
+                args = SimpleNamespace(
+                    product=product, start="2022-09-01T00:00:00",
+                    end="2022-09-01T00:00:00", spedas_dir=tmp,
+                    result_json=str(Path(tmp) / "result.json"),
+                )
+                with (
+                    mock.patch.dict(sys.modules, {
+                        "ergpyspedas": SimpleNamespace(erg=erg),
+                        "ergpyspedas.erg": erg, "pyspedas": psp,
+                    }),
+                    mock.patch.dict(batch.os.environ),
+                    mock.patch.object(att_tolerant, "validate_att_files") as validate,
+                    mock.patch("builtins.print"),
+                ):
+                    self.assertEqual(batch.prefetch_one(args), 0)
+                self.assertEqual(json.loads(Path(args.result_json).read_text())["files"],
+                                 [str(local)])
+                self.assertEqual(loader.call_count, 2)
+                self.assertFalse(loader.call_args_list[0].kwargs["no_update"])
+                self.assertTrue(loader.call_args_list[1].kwargs["no_update"])
+                if product == "att_l2":
+                    validate.assert_called_once_with([str(local)])
+                if product == "omni_hourly":
+                    self.assertEqual(loader.call_args.kwargs["trange"],
+                                     ["2022-09-01", "2022-09-01"])
 
     def test_omni_hourly_request_uses_date_only(self):
         self.assertEqual(

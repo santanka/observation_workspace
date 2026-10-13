@@ -1,21 +1,22 @@
 # LEP-i partial moment の検証
 
-二つのノートを区別して使う。
+三つのノートを区別して使う。
 
 | ノート | 対象 |
 | --- | --- |
 | `LEPi_drifting_Maxwellian_partial_moments.ipynb` | 等方的な単一H⁺ドリフトMaxwell分布の連続積分。30 eV〜30 keVのpartial速度・温度・圧力と真値を比較する。公開関数は呼ばない。 |
-| `LEPi_part_products_synthetic_validation.ipynb` | LEP-i L2形式の疑似fluxを、実際のインストール済み `erg_lep_part_products` に渡す。ネイティブビンでの出力を独立離散計算・連続積分と比較する。 |
+| `LEPi_part_products_synthetic_validation_Emin30eVq.ipynb` | LEP-i L2形式の疑似fluxを、実際のインストール済み `erg_lep_part_products` に渡す。ネイティブビンでの出力を独立離散計算・連続積分と比較する。 |
+| `LEPi_part_products_synthetic_validation_Emin100eVq.ipynb` | 設定セルの `ENERGY_MIN_EVQ` で任意の積分下限を指定し、実公開関数の真値からの誤差を主結果として評価する。30 eV/qとの差は補足。1 keVの詳しい比較と温度・流速・方向依存性を含む。 |
 
 Jupyterの作業ディレクトリをこのディレクトリにし、各ノートを上から実行する。このworkspaceでは `.venv_pyspedas` のPython環境で実行できる。
 
-必要パッケージ: numpy, scipy, pandas, matplotlib, IPython, Jupyter。公開関数のノートでは、さらに pyspedas, ergpyspedas を使う。ローカルCDFからコピー済みのエネルギー・角度設定を `lepi_l2_geometry.json` に保存しているので、再実行時にCDFやネットワークからデータを取得する必要はない。どちらのノートも実観測fluxを使わない。
+必要パッケージ: numpy, scipy, pandas, matplotlib, IPython, Jupyter。公開関数のノートでは、さらに pyspedas, ergpyspedas を使う。ローカルCDFからコピー済みのエネルギー・角度設定を `lepi_l2_geometry.json` に保存しているので、再実行時にCDFやネットワークからデータを取得する必要はない。いずれのノートも実観測fluxを使わない。
 
 ## 公開関数の検証
 
 `lepi_synthetic_validation.py` に入力生成、実関数呼び出し、独立離散計算、連続基準との比較をまとめている。mock・monkeypatch・インストール済みコードの変更は行わない。現行の研究ノートが呼ぶ `pyspedas` 版を主対象とし、`ergpyspedas` 版も代表ケースで比較する。
 
-既存の連続積分ノートからは、パラメータ・関数定義のセルだけを読み込んで基準計算を再利用する。図や走査セルは実行しない。そのため、両ノートと補助コードは同じディレクトリに置く。
+既存の連続積分ノートからは、パラメータ・関数定義のセルだけを読み込んで基準計算を再利用する。図や走査セルは実行しない。そのため、各ノートと補助コードは同じディレクトリに置く。
 
 公開関数のノートには以下を含む。
 
@@ -34,3 +35,5 @@ Jupyterの作業ディレクトリをこのディレクトリにし、各ノー�
 CSV・PNG・実装の記録は `outputs/` に保存する。再生成可能なため、このディレクトリの `.gitignore` でGit管理から除外する。ノート内に埋め込まれた図・表は実行結果付きで保持する。
 
 温度・流速の走査範囲は例示であり、実際の対象観測条件を保証しない。温度・圧力はpartial平均速度を中心にした2次momentで計算する。成分温度の異方性はドリフト軸に関する量。絶対圧力用の真の密度は `REFERENCE_DENSITY_CM3` で指定できる（既定値1 cm⁻³）。詳細な仮定、数式、検算、解釈の限界は各ノート本文に記載している。
+
+可変下限ノートの検証結果は `outputs/Emin{設定下限}eVq/` に保存する。ファイル名の `Emin100eVq` は従来の名称を維持しており、下限は `ENERGY_MIN_EVQ` の設定値で決まる。変更後は全セルを上から実行する。ビン中心が境界に一致する場合はそのビンを含み、選択ビンがない設定ではエラーを出す。30 eV/qとの比較も補足として含む。元の実関数ノートはファイル名に `Emin30eVq` を追加して区別した。連続積分の基準ノートのファイル名は維持している。

@@ -70,11 +70,11 @@ def native_distribution(package='pyspedas'):
     return PUBLIC_MODULES[package].erg_lepi_get_dist(INPUT_NAME, [0], species='proton')
 
 
-def native_bin_table(package='pyspedas'):
+def native_bin_table(package='pyspedas', energy_range=ENERGY_RANGE):
     d = native_distribution(package)
     e = d['energy'][:, 0, 0, 0]
     de = d['denergy'][:, 0, 0, 0]
-    use = (e >= ENERGY_RANGE[0]) & (e <= ENERGY_RANGE[1]) & (np.arange(30) != 0)
+    use = (e >= energy_range[0]) & (e <= energy_range[1]) & (np.arange(30) != 0)
     return {'channel': np.arange(30), 'energy_ev': e, 'width_ev': de,
             'getter_lower_edge_ev': _getter_edges(e)[0],
             'getter_upper_edge_ev': _getter_edges(e)[1], 'selected': use}
@@ -282,16 +282,17 @@ def continuous_reference(theta_ev, speed_kms, energy_range=ENERGY_RANGE, density
     return result
 
 
-def result_record(theta_ev, velocity_kms, density_cm3=1., package='pyspedas', sampling='centre'):
+def result_record(theta_ev, velocity_kms, density_cm3=1., package='pyspedas', sampling='centre',
+                  *, energy_range=ENERGY_RANGE):
     u = np.asarray(velocity_kms, dtype=float)
     speed = np.linalg.norm(u)
     flux = make_flux(theta_ev, u, density_cm3, package, sampling)
-    public = run_public(flux, package)
-    discrete = independent_discrete_moments(flux, package)
+    public = run_public(flux, package, energy_range=energy_range)
+    discrete = independent_discrete_moments(flux, package, energy_range=energy_range)
     # Independent agreement is separate from bias versus the full distribution.
     discrete_error = check_public_vs_discrete(public, discrete, package)
-    continuous = continuous_reference(theta_ev, speed, density_cm3=density_cm3, package=package)
-    table = native_bin_table(package)
+    continuous = continuous_reference(theta_ev, speed, energy_range=energy_range, density_cm3=density_cm3, package=package)
+    table = native_bin_table(package, energy_range=energy_range)
     use = table['selected']
     support = [table['getter_lower_edge_ev'][use].min(), table['getter_upper_edge_ev'][use].max()]
     shell = continuous_reference(theta_ev, speed, support, density_cm3, package)
@@ -303,7 +304,8 @@ def result_record(theta_ev, velocity_kms, density_cm3=1., package='pyspedas', sa
     pressure_x = (np.trace(public['ptens'])-pressure_z)/2
     nratio = float(public['density']/density_cm3)
     reliable = nratio > DENSITY_FLOOR
-    return dict(package=package, sampling=sampling, theta_ev=theta_ev, true_speed_kms=speed,
+    return dict(package=package, sampling=sampling, energy_min_ev=float(energy_range[0]),
+                energy_max_ev=float(energy_range[1]), theta_ev=theta_ev, true_speed_kms=speed,
                 ux_kms=u[0], uy_kms=u[1], uz_kms=u[2], density_cm3=float(public['density']),
                 density_ratio=nratio, projected_speed_kms=projected,
                 off_axis_speed_kms=off_axis, temperature_ev=float(public['avgtemp']),

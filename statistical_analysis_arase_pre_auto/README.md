@@ -6,9 +6,10 @@
 
 ## 固定した解析条件
 
-- analysis version: `lepe_ge67eV_v1`
+- analysis version: `lepe_ge67eV_vion_v2`
 - LEP-e moments: channel energyが67 eV以上のデータのみ。上限は追加せず、測定範囲を維持
 - LEP-i moments: 従来どおり30 eV/q--30 keV/q
+- 系の速度: 観測partial ion momentのFACベクトルをそのまま使用し、衛星速度を減算しない。native ion時刻を保持し、後段の共通時間軸への補間・100秒平滑化とtoroidal/poloidal成分の定義は維持する
 - phase summaryとrange markerに解析version、LEP-e下限・上限方針、PySPEDAS/NumPy/xarray versionを保存
 - component: toroidal
 - phase: north traveling / south traveling / standing / all
@@ -46,16 +47,16 @@ range JSONのファイル名と内容hashからdataset keyを作り、実行状�
 ```
 
 実行状態と全range集約は
-`/mnt/j/statistical_analysis_arase/preanalysis/KAW_observation/lepe_ge67eV_v1/run_state/<dataset key>/`
+`/mnt/j/statistical_analysis_arase/preanalysis/KAW_observation/lepe_ge67eV_vion_v2/run_state/<dataset key>/`
 に保存する。図とrange別解析結果は
-`/mnt/j/statistical_analysis_arase/preanalysis/KAW_observation/lepe_ge67eV_v1/auto/<dataset key>/`
+`/mnt/j/statistical_analysis_arase/preanalysis/KAW_observation/lepe_ge67eV_vion_v2/auto/<dataset key>/`
 に保存する。
 master tableには、このrunnerが `complete` と記録したrangeだけを含める。出力先に残る
 旧Notebook実行のsummaryは自動では混入しない。部分実行後もmasterは全rangeについて
 再構築される。
 
 ```text
-KAW_observation/lepe_ge67eV_v1/run_state/<dataset key>/
+KAW_observation/lepe_ge67eV_vion_v2/run_state/<dataset key>/
   downloads/<product>/<file-unit>.json
   downloads/_blocks/<product>/<block>_attempt_<n>.json
   ranges/range_<id>.json
@@ -71,13 +72,22 @@ KAW_observation/lepe_ge67eV_v1/run_state/<dataset key>/
 67 eV制限前の`auto`と`run_state`は`legacy/lepe_unrestricted_20261006/`へ移動し、
 旧パスには互換symlinkを残す。旧CSV/marker内の絶対パスは引き続き解決できる。
 元CDF、waveform、range manifestは移動しない。全plot scriptの既定保存先も新versionに従う。
+衛星速度減算を用いた `lepe_ge67eV_v1/` は、`legacy/lepe_ge67eV_v1_vsys_subtracted_20261009/` へ `auto` と `run_state` 配下の全datasetを移動し、各旧datasetパスに互換symlinkを残す。新versionは旧markerを再利用しない。
 旧結果を比較用にplotするときは旧`--state-dir`と別の`--output-dir`を明示する。
 
-移動の確認（既定はdry run）:
+衛星速度減算を用いた結果の移動確認（既定はdry run）:
+
+```bash
+.venv_pyspedas/bin/python statistical_analysis_arase_pre_auto/archive_legacy_vsys_results.py
+```
+
+67 eV制限前の結果の移動確認（既定はdry run）:
 
 ```bash
 .venv_pyspedas/bin/python statistical_analysis_arase_pre_auto/archive_legacy_lepe_results.py
 ```
+
+手動再解析用の月別コマンドと全17か月のloopは [`REANALYSIS_VION.md`](REANALYSIS_VION.md) に記載する。
 
 新versionでの初回再解析では旧stateを指定せず、`--noncomplete-only`や`--force`を付けない。
 新しいstateには完了markerがないため全rangeが処理され、通常の再開時は同じversion・hashの
@@ -157,7 +167,7 @@ markerだけを処理する場合:
   statistical_analysis_arase_pre_auto/plot_orbit_coverage.py
 ```
 
-全candidateの図は`KAW_observation/lepe_ge67eV_v1/auto/<dataset key>/orbit_coverage/`、phase別4図はその下の
+全candidateの図は`KAW_observation/lepe_ge67eV_vion_v2/auto/<dataset key>/orbit_coverage/`、phase別4図はその下の
 `detected_phase/`へ保存する。各図のPNG、PDFと、再描画用の軌道NPZ cacheを保存する。
 図の期間、colormap、点サイズ、透明度、軸範囲・反転、colorbar
 tickは`plot_orbit_coverage.py`冒頭の`PLOT_CONFIG`で変更できる。軌道データを読み直す場合は
@@ -202,7 +212,7 @@ manifest中の全rangeを対象とする。`--completed-only`、反復可能な`
 `--png-only`、`--refresh-cache`をbackfill subcommandで使用できる。既存図はskipするため、
 中断後に同じcommandで再開でき、上書きには`--force`を使う。
 
-出力は`KAW_observation/lepe_ge67eV_v1/auto/<dataset key>/event_orbits/range_NNN/`に保存する。GSM・SM
+出力は`KAW_observation/lepe_ge67eV_vion_v2/auto/<dataset key>/event_orbits/range_NNN/`に保存する。GSM・SM
 それぞれのPNG/PDFと、manifest hashで検証する共通ORB cacheを生成する。途中点間隔、色、
 marker、線幅、軸範囲、画像形式は`plot_event_orbits.py`冒頭の`PLOT_CONFIG`で変更できる。
 短いrangeでは地球スケール上でstart/endが重なるため、上段を地球を含む全体図、下段を
@@ -224,7 +234,7 @@ north/south/standing/allは別々のPNG・PDFに保存する。
   statistical_analysis_arase_pre_auto/plot_kappa_time_series.py
 ```
 
-出力先は`KAW_observation/lepe_ge67eV_v1/auto/<dataset key>/kappa_time_series/`。色、marker、errorbar、
+出力先は`KAW_observation/lepe_ge67eV_vion_v2/auto/<dataset key>/kappa_time_series/`。色、marker、errorbar、
 図サイズ、共通y軸範囲、表示期間はscript冒頭の`PLOT_CONFIG`で調整できる。別のranges
 JSONには`--ranges`を使い、masterや出力先を直接指定する場合は`--master`、
 `--output-dir`を使う。
@@ -261,7 +271,7 @@ allだけを作成する場合:
 停止する。local dataだけを使う場合は`--no-download`、ORB cacheを再構築する場合は
 `--refresh-dwelling-cache`を指定する。
 
-出力先は`KAW_observation/lepe_ge67eV_v1/auto/<dataset key>/occurrence_probability/`で、各図のPNG、
+出力先は`KAW_observation/lepe_ge67eV_vion_v2/auto/<dataset key>/occurrence_probability/`で、各図のPNG、
 PDF、各binの時間・確率・range数を含むCSV、再利用用ORB dwelling cacheを保存する。
 確率の分母・分子、代表位置、
 bin境界、coverage maskの定義は
@@ -327,8 +337,9 @@ blockのtrange終端は次unit境界の1秒前とし、不要な次fileを取得
 
 - download markerは`range/product`ではなく`product/file-unit`単位で保存する
 - markerにはloaderが返したlocal file一覧を保存し、全fileが存在する場合だけ再利用する
-- ATTはmarkerがない初回でもlocal日次fileの全coverageを先に確認し、揃っていればremote indexへ接続しない
-- MGFもlocal 1時間fileの全coverageを先に確認する。不足時だけremoteへ接続し、取得後に要求hourを再検証する
+- prefetch対象のunitは、全製品で先に`no_update=False`による更新を試す。通信例外、空の結果、部分取得の場合は`no_update=True`で既存fileを探し、不足unitだけを補う
+- 更新で取得できたunitは更新結果を優先し、同じunitの旧versionをfallbackで追加しない。fallbackしたfileはdownload logへ記録する
+- MGFは更新結果と既存fileを合わせても要求UTC hourが欠ける場合、従来どおり失敗として再試行する
 - 完了unitを除外した後で残りを再block化するため、再実行時は欠損unitだけを取得する
 - block内の一部CDFだけが欠損しても、取得済みunitは完了として保存する
 - 欠損・失敗unitを必要とするrangeだけを`failed_download`にする
