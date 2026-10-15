@@ -16,6 +16,60 @@ import att_tolerant
 
 
 class BatchAraseTests(unittest.TestCase):
+    def test_normal_run_skips_excluded_before_prefetch(self):
+        _, ranges = batch.load_ranges(batch.DEFAULT_RANGES)
+        item = ranges[0]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            batch.atomic_json(batch.status_path(root, item), {'status': 'excluded'})
+            argv = ['batch_arase.py', 'run', '--state-dir', str(root),
+                    '--range-id', str(item['range_id'])]
+            with (mock.patch.object(sys, 'argv', argv),
+                  mock.patch.object(batch, 'run_prefetch', return_value=set()) as prefetch,
+                  mock.patch.object(batch, 'run_ranges') as execute,
+                  mock.patch.object(batch, 'run_postpass_retries'),
+                  mock.patch.object(batch, 'aggregate')):
+                self.assertEqual(batch.main(), 0)
+            self.assertEqual(prefetch.call_args.args[1], [])
+            self.assertEqual(execute.call_args.args[1], [])
+
+    def test_required_input_coverage_distinguishes_samples_and_brackets(self):
+        namespace = {}
+        exec(batch.BATCH_PREAMBLE, namespace)
+        guard = namespace['batch_require_time_coverage']
+        da = xr.DataArray([1., 2.], dims='time', coords={'time': np.array([
+            '2022-01-01T00:00:00', '2022-01-01T01:00:00',
+        ], dtype='datetime64[ns]')})
+        interval = ['2022-01-01T00:20:00', '2022-01-01T00:30:00']
+        with self.assertRaisesRegex(ValueError, 'Required input unavailable:'):
+            guard(da, 'particle flux', interval)
+        guard(da, 'hourly support', interval, require_sample=False)
+        for missing in [None, da.isel(time=slice(0, 0)), da]:
+            with self.assertRaisesRegex(ValueError, 'Required input unavailable:'):
+                guard(missing, 'required data', ['2022-01-02', '2022-01-03'], require_sample=False)
+        with self.assertRaisesRegex(ValueError, 'schema invalid'):
+            guard(xr.DataArray([1.], dims='energy'), 'bad schema', interval)
+        self.assertEqual(batch.classify_range_failure(
+            'ValueError: Required input unavailable: particle flux has no usable time coverage', 1),
+            ('empty_input_data', False))
+        self.assertEqual(batch.classify_range_failure('IndexError: unrelated index error', 1),
+                         ('analysis_error', False))
+
+    def test_confirmed_missing_product_excluded_but_network_failure_retained(self):
+        item = {'range_id': 1, 'start_time': '2022-09-01T05:00:00',
+                'end_time': '2022-09-01T05:10:00'}
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            unit = batch.build_download_units([item], 'lepi_l2_3dflux')[0]
+            block = batch.block_download_units([unit])[0]
+            batch._write_unit_status(root, unit, 'failed', block, files=[])
+            self.assertEqual(batch.download_failure_status(root, item)['status'], 'failed_download')
+            batch._write_unit_status(root, unit, 'missing_remote', block, files=[])
+            result = batch.download_failure_status(root, item)
+            self.assertEqual(result['status'], 'excluded')
+            self.assertFalse(result['retryable'])
+            self.assertEqual(result['missing_units'], ['lepi_l2_3dflux/20220901'])
+
     def test_event_orbit_cli_is_opt_in_and_supports_backfill(self):
         run_args = batch.build_parser().parse_args(["run"])
         self.assertFalse(run_args.plot_event_orbits)
@@ -142,7 +196,7 @@ class BatchAraseTests(unittest.TestCase):
             "n_jobs=1",
             batch.WAVELET_TEMP_DIR_SOURCE,
             "load_att_tolerant(time_range",
-            "return batch_dedup_time(da).sel",
+            "selected = batch_dedup_time(da).sel",
             "ds_B_seg = batch_dedup_time(ds_B_seg)",
             "v_ion_fac = batch_dedup_time(v_ion_fac)",
             "nd_window = batch_rolling_window_samples",
@@ -937,7 +991,7 @@ class BatchAraseTests(unittest.TestCase):
             def fake_run_child(command, log_path, timeout, env):
                 log_path.parent.mkdir(parents=True, exist_ok=True)
                 log_path.write_text(
-                    "ValueError: zero-size array to reduction operation minimum"
+                    "ValueError: Required input unavailable: LEP-i has no usable time coverage"
                 )
                 return 1
 
@@ -948,6 +1002,7 @@ class BatchAraseTests(unittest.TestCase):
             self.assertEqual(status["status"], "excluded")
             self.assertEqual(status["failure_class"], "empty_input_data")
             self.assertFalse(status["retryable"])
+            self.assertIn('LEP-i has no usable time coverage', status['reason'])
             self.assertNotIn(item, batch.noncomplete_ranges(args.state_dir, [item]))
 
     def test_postpass_retries_only_retryable_analysis_ranges(self):

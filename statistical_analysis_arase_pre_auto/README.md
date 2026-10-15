@@ -55,6 +55,16 @@ master tableには、このrunnerが `complete` と記録したrangeだけを含
 旧Notebook実行のsummaryは自動では混入しない。部分実行後もmasterは全rangeについて
 再構築される。
 
+必須入力の対象時間内のレコード不在・時間範囲不足、および取得記録の
+`missing_remote` は、理由付きの `excluded`（解析不能・除外）とする。
+粒子データには区間内のnative recordを要求する。HFAの補助時系列は区間との
+時間範囲の重なりを確認し、区間内にnative recordがないだけでは除外しない。
+既存の補間・品質条件は維持する。接続失敗、認証エラー、timeoutだけでは
+欠測を確定せず、`failed_download` として再試行対象に残す。
+`excluded` は通常の `run` と `--noncomplete-only` で再実行しない。
+入力が公開・更新された後に再評価する場合は対象rangeを指定して `--force` を使う。
+runner更新後に完了済み区間も維持して再開する場合は `--noncomplete-only` を使う。
+
 ```text
 KAW_observation/lepe_ge67eV_vion_v2/run_state/<dataset key>/
   downloads/<product>/<file-unit>.json

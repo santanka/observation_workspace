@@ -271,6 +271,19 @@ def transform_notebook_source(
     for old, new in replacements.items():
         source = source.replace(old, new)
 
+    # Daily files can exist while the requested interval contains no records.
+    for load_call, name, require_sample in (
+        ("ergpy.lepe(trange=time_range, datatype='3dflux', level='l2', no_update=True)", "erg_lepe_l2_3dflux_FEDU", True),
+        ("ergpy.lepi(trange=time_range, datatype='3dflux', level='l2', no_update=True)", "erg_lepi_l2_3dflux_FPDU", True),
+        ("ergpy.pwe_hfa(trange=time_range, level='l3', no_update=True)", "erg_pwe_hfa_l3_1min_ne_mgf", False),
+        ("ergpy.pwe_hfa(trange=time_range, level='l2', no_update=True)", "erg_pwe_hfa_l2_low_spectra_esum", False),
+    ):
+        source = source.replace(
+            load_call,
+            load_call + "\n" + f"batch_require_time_coverage(psp.get_data({name!r}, xarray=True), {name!r}, time_range, require_sample={require_sample!r})",
+            1,
+        )
+
     # ATT is prefetched as daily text files. Load it from the local cache in
     # each isolated kernel, then prevent erg_cotrans from calling att() again.
     source = source.replace(
@@ -287,7 +300,9 @@ def transform_notebook_source(
     # on duplicated native samples in real ranges.
     source = source.replace(
         "    return da.sortby('time').sel(time=time_slice)",
-        "    return batch_dedup_time(da).sel(time=time_slice)",
+        "    selected = batch_dedup_time(da).sel(time=time_slice)\n"
+        "    batch_require_time_coverage(selected, name, time_range)\n"
+        "    return selected",
         1,
     )
     source = source.replace(
@@ -499,6 +514,19 @@ import numpy as np
 import pandas as pd
 
 plt.ioff()
+
+def batch_require_time_coverage(da, name, interval, require_sample=True):
+    if da is None:
+        raise ValueError(f"Required input unavailable: {name} was not loaded from local input")
+    if "time" not in da.coords:
+        raise ValueError(f"Required input schema invalid: {name} has no time coordinate")
+    times = np.asarray(da.time.values, dtype="datetime64[ns]")
+    times = times[~np.isnat(times)]
+    start, end = (np.datetime64(t) for t in interval)
+    available = (np.any((times >= start) & (times <= end)) if require_sample
+                 else times.size > 0 and times.min() <= end and times.max() >= start)
+    if not available:
+        raise ValueError(f"Required input unavailable: {name} has no usable time coverage in {interval}")
 
 def batch_dedup_time(obj):
     if "time" not in getattr(obj, "dims", ()):
@@ -779,11 +807,12 @@ def execute_notebook_once(args: argparse.Namespace) -> int:
         "n_jobs=1",
         WAVELET_TEMP_DIR_SOURCE,
         "load_att_tolerant(time_range",
-        "return batch_dedup_time(da).sel",
+        "selected = batch_dedup_time(da).sel",
         "ds_B_seg = batch_dedup_time(ds_B_seg)",
         "v_ion_fac = batch_dedup_time(v_ion_fac)",
         "nd_window = batch_rolling_window_samples",
         "no_update=True",
+        "batch_require_time_coverage(",
         "name_out='sundir_j2000'",
         "noload=True",
         *REQUIRED_NOTEBOOK_ANALYSIS_MARKERS,
@@ -1459,7 +1488,10 @@ def classify_range_failure(log_text: str, returncode: int) -> tuple[str, bool]:
         return "no_overlapping_efd_mgf_waveform", False
     if "No EB64 segment survived DSI to FAC rotation" in log_text:
         return "no_valid_fac_segment", False
-    if "zero-size array" in log_text:
+    if any(signature in log_text for signature in (
+        "Required input unavailable:", "zero-size array",
+        "No geomagnetic indices were loaded from OMNI",
+    )):
         return "empty_input_data", False
     return "analysis_error", False
 
@@ -1532,6 +1564,21 @@ def retryable_download_range_ids(
             if status in {"failed", "timeout"}:
                 retryable_ids.update(selected_ids.intersection(unit.range_ids))
     return retryable_ids
+
+
+def download_failure_status(state_dir: Path, item: dict[str, Any]) -> dict[str, Any]:
+    missing = []
+    for product in PRODUCTS:
+        for unit in build_download_units([item], product):
+            if known_missing_download_unit(download_unit_marker(state_dir, unit), unit):
+                missing.append(f"{product}/{unit.key}")
+    if missing:
+        return {
+            "status": "excluded", "failure_class": "required_input_missing_remote",
+            "retryable": False, "missing_units": missing,
+            "reason": "Required file units recorded as missing_remote: " + ", ".join(missing),
+        }
+    return {"status": "failed_download", "reason": "One or more required products failed for this range"}
 
 
 def run_ranges(args: argparse.Namespace, ranges: list[dict[str, Any]], ranges_hash: str) -> None:
@@ -1629,6 +1676,13 @@ def run_ranges(args: argparse.Namespace, ranges: list[dict[str, Any]], ranges_ha
                 terminal.update(
                     status=state, failure_class=failure_class, retryable=retryable
                 )
+                if "Required input unavailable:" in _log_text_since(log_path, log_offset):
+                    text = _log_text_since(log_path, log_offset)
+                    terminal["reason"] = next(
+                        line[line.index("Required input unavailable:"):].strip()
+                        for line in reversed(text.splitlines())
+                        if "Required input unavailable:" in line
+                    )
             atomic_json(marker, terminal)
             suffix = (
                 f", {terminal['failure_class']}, retryable={terminal['retryable']}"
@@ -1871,6 +1925,19 @@ def main() -> int:
         ranges = selected_ranges(all_ranges, args.range_id)
         ranges_hash = file_sha256(Path(args.ranges))
         key = resolve_run_paths(args, ranges_hash)
+        if args.command == "run" and not args.force:
+            # Exclusions are terminal across runner-only changes. --force allows
+            # explicit re-evaluation when inputs become available later.
+            retained = []
+            for item in ranges:
+                marker = status_path(Path(args.state_dir), item)
+                try:
+                    prior = json.loads(marker.read_text())
+                except (OSError, ValueError):
+                    prior = {}
+                if prior.get("status") != "excluded":
+                    retained.append(item)
+            ranges = retained
         if args.command == "run" and args.noncomplete_only:
             original_count = len(ranges)
             ranges = noncomplete_ranges(Path(args.state_dir), ranges)
@@ -1899,8 +1966,7 @@ def main() -> int:
                         "range_id": int(item["range_id"]),
                         "start_time": item["start_time"],
                         "end_time": item["end_time"],
-                        "status": "failed_download",
-                        "reason": "One or more required products failed for this range",
+                        **download_failure_status(Path(args.state_dir), item),
                         "finished_at": utc_now(),
                     })
         run_ranges(args, runnable_ranges, ranges_hash)
