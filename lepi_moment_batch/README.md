@@ -1,7 +1,8 @@
 # 月・年単位のLEP-iモーメント計算と保存
 
 KAW解析とは独立した、取得・検証・計算用ランナー。月または年を指定すると、UTCの5分区間を
-1ワーカーずつ順次処理する。各区間は新しいプロセスで計算し、終了時にメモリとtplot状態を解放する。
+既定では1ワーカーで処理する。`--compute-workers`で同時実行数を指定できる。
+各区間は新しいプロセスで計算し、終了時にメモリとtplot状態を解放する。
 未検証の入力は計算に使わない。必要なCDFを自動取得・検証して従来のSPEDASキャッシュへ保存する。
 既存rawが破損している場合も、代替CDFの取得・検証が成功してからatomic renameで更新する。
 
@@ -35,7 +36,8 @@ SIGTERMも中断として扱い、実行状態を記録する。
 
 端末ではtqdmの進捗バーを既定で表示する。月・年の要求範囲全体を対象とし、
 処理済み5分区間数、割合、経過時間、推定残り時間と、現在のUTC時刻・工程を表示する。
-`ok` は計算完了、`skip` は検証済み結果の再利用、`empty` は `no_data` と確認済みファイル不在、
+`ok`は全時刻で計算可能なチャンク、`partial`は部分計算とその再利用、
+`skip`は検証済みcompleteの再利用、`excluded`は確定した除外とその再利用、
 `failed` は失敗の件数。100%は全区間を試行したことを意味し、全区間の計算成功を意味しない。
 展開失敗で当日の残りを打ち切る場合や中断時は、未試行区間を進捗に加えない。
 初回の取得・展開・再試行で区間の所要時間は変わるため、残り時間は目安になる。
@@ -54,6 +56,167 @@ SIGTERMも中断として扱い、実行状態を記録する。
 表示設定を変えるだけでは出力プロファイルは変わらない。
 ただし今回のコード更新は、既存のソースハッシュ管理により新しいプロファイルとなり、
 以前のプロファイルとは保存先が分かれる。数値計算の条件・処理には変更を加えていない。
+
+## 欠損区間の高速化と旧結果からの再開（2026-10-16）
+
+欠損区間（旧`no_data`・`missing_mgf`）では、ワーカー終了後の`--pause-seconds`の待機を省く。
+科学ライブラリは磁場の補間条件を満たしてmoment計算へ進む場合だけ読み込む。
+CDFの時刻列とUTC変換結果はscratch内の`*.epochs.npz`へ保存し、元の展開済みCDFの
+パス・サイズ・更新時刻と時刻変数名が一致する場合だけ再利用する。scratch清掃時に索引も削除する。
+検証済み入力のみを使う条件、日境界の隣接ファイル、重複時刻、磁場の補間・品質条件は維持する。
+取得の並列数は`--download-workers`、計算の並列数は`--compute-workers`で指定する。
+CPUの割り当てと計算ワーカーごとのメモリ解放を維持する。
+
+ソースハッシュが変わるため、新しい出力プロファイルになる。従来の2022年処理を引き継ぐ例：
+
+```bash
+.venv_pyspedas/bin/python lepi_moment_batch/batch.py --year 2022 \
+  --reuse-results-from /mnt/j/observation_data/Arase_LEPi_moments/native_dsi_7974a6054c9a
+```
+
+`--reuse-results-from`は複数回指定でき、指定順に各チャンクの候補を確認する。
+各プロファイルの互換性は起動時に検証し、チャンクがない・未完了・入力が異なる・NPZが破損している
+場合は次のプロファイルを試す。最初に条件を満たしたcompleteだけを採用し、どの候補にもなければ再計算する。
+指定プロファイル自体の条件が不適合なら起動時に停止する。元のファイルは変更せず、採用元を
+新しいstateとNPZ manifestの`reused_from`に記録する。同じパスの重複指定は一度だけ確認する。
+新しい結果を優先して2つの既存プロファイルを使う例：
+
+```bash
+.venv_pyspedas/bin/python lepi_moment_batch/batch.py --year 2022 \
+  --download-workers 8 --compute-workers 4 --pause-seconds 0 \
+  --reuse-results-from /mnt/j/observation_data/Arase_LEPi_moments/native_dsi_e0b45f8d3c41 \
+  --reuse-results-from /mnt/j/observation_data/Arase_LEPi_moments/native_dsi_7974a6054c9a
+```
+
+以前に磁場cadence・最大ギャップなどを指定していた場合は、同じ条件も指定する。
+`--reuse-results-from`は旧profileのハッシュ、計算条件、パッケージ版、科学コード、
+現在の入力証跡との一致を検証する。旧runnerの差分は今回確認した版に限定する。
+検証できた旧`complete`のみ新プロファイルへ引き継ぐ。旧completeに有効時刻マスクがない場合は、
+数値配列を保持したまま全時刻有効のマスクと理由0を追加する。旧`no_data`・`missing_mgf`・
+`excluded`を含む、それ以外の状態は引き継がず、新しい分類で再判定する。
+旧ファイルは変更しない。NPZの数値配列のNPYペイロードをそのまま保持し、manifestを新しい
+プロファイルへ更新して別ファイルへ再保存する。旧profile・出力パス・SHA256を来歴として記録する。
+引き継ぎにも読み書きとハッシュ検証の時間・追加ディスク容量が必要になる。
+新プロファイルで一度引き継いだ結果は通常の再開検証でスキップされる。
+
+今回のbatch.py更新で入力検証の識別子も変わるため、初回はキャッシュCDFの再検証が発生する。
+この先行取得・検証の時間は、欠損チャンク自体の高速化とは別にかかる。
+外部取得の方針は従来どおりで、`--refresh-downloads`を付けない限り有効な取得証跡を再利用する。
+
+小さな合成CDFを用い各3回比較したワーカー起動から終了までの中央値は、`no_data`で
+2.17秒→0.20秒、`missing_mgf`で2.66秒→0.24秒だった。さらに親側の既定2秒待機を省く。
+これはローカルの合成データ測定であり、実データの全体処理速度を保証する値ではない。
+
+## ダウンロードの並列数
+
+先行取得は既定で最大8ワーカー。`--download-workers 8`で明示でき、
+`--download-workers 1`で従来の直列取得に戻せる。`--offline`では直列で検証済み入力を参照する。
+
+```bash
+.venv_pyspedas/bin/python lepi_moment_batch/batch.py --year 2022 \
+  --download-workers 8 \
+  --reuse-results-from /mnt/j/observation_data/Arase_LEPi_moments/native_dsi_7974a6054c9a
+```
+
+並列数はこのジョブ内の取得単位数の上限で、HTTP要求数や他ジョブを含めた上限ではない。
+取得単位ごとに独立したプロセスとscratchを使い、HTTPの読み取り・全体タイムアウトを維持する。
+親は同時に最大指定数だけを投入し、検証済み取得証跡・ファイルロック・atomic更新を維持する。
+CDFの展開・検証・展開済みファイルの清掃は共有ロックで1取得単位ずつ処理するため、
+ダウンロードを重ねても8個の日CDFを同時展開する構成にはならない。
+計算との同時実行はなく、その月の取得が終わってからmoment計算へ進む。
+
+`Ctrl+C`/SIGTERMでは実行中の取得プロセスも終了させ、一時ファイルとscratchを清掃する。
+`--max-network-failures`の連続失敗数は、並列時は親が結果を受け取る順で数える。
+閾値へ達すると追加投入を止めて実行中の取得を中断するが、その時点で別の取得が
+既に完了している場合は、その取得証跡が残る。
+
+今回もソースハッシュが変わるので新しいプロファイルになる。元のプロファイルに加え、
+直前の欠損高速化版の結果も、`--reuse-results-from`へそのディレクトリを指定して検証・再利用できる。
+ワーカー数の数値自体は計算プロファイルに含めないため、実装が同じなら並列数を変えても保存先は変わらない。
+
+検証用コマンド（外部通信なし、127.0.0.1のみ）：
+
+```bash
+.venv_pyspedas/bin/python lepi_moment_batch/check_parallel_acquisition.py
+```
+
+8件の同時GET、CDF検証・共有キャッシュへの保存、メモリ内取得証跡の再利用、中断時の清掃を確認する。
+
+## 粒子時刻ごとの部分計算（2026-10-16）
+
+5分チャンク内の各LEP-i粒子時刻で、元のMGFサンプルによる補間範囲・端点の有限性・
+最大ギャップ・補間した磁場の非ゼロ条件を判定する。条件とエネルギー範囲・座標系・
+生qualityの保持方針は変更しない。条件を満たした時刻だけ、3イオン種共通のマスクで
+公開moment関数を実行する。元の`epoch_tt2000`・`time_unix`は全時刻を保持する。
+無効時刻の全48 moment系列と`*__b_dsi_at_moment`はNaNで保存し、元counts・quality・
+粒子診断値・元ファイル／レコード番号は無効時刻についても保持する。
+
+追加配列：
+
+| 配列 | 内容 |
+|---|---|
+| `moment_valid` | 各粒子時刻で磁場条件を満たして計算したかを示すbool。全粒子分布binや全momentの有限性を保証するフラグではない |
+| `moment_invalid_reason` | uint8の理由ビット。0は計算可能。複数ビットが立つ場合もある |
+| `mgf_bracket_gap_seconds` | 元サンプルによるギャップ秒。範囲外はNaN |
+
+理由ビットは1=磁場の時間範囲外、2=補間端点の非有限値/FILLVAL、4=最大ギャップ超過、
+8=補間磁場がゼロ。対応はmanifestの`metadata.moment_selection.invalid_reason_bits`にも保存する。
+全時刻有効なら`complete`、一部なら`partial`。全時刻無効ならNPZは作らず、時間範囲不足は
+`excluded`、全時刻が磁場無効値等で計算不能なら`failed_validation`など、原因別に記録する。
+`records_per_species`は元レコード数、`computed_records_per_species`・`invalid_records_per_species`は
+それぞれ計算した／できなかった数。`valid_moment_fraction`はレコード数の割合で、滞在時間の割合ではない。
+月別summaryにも、保存したcomplete/partial内の元・計算済み・無効レコード数を各種共通の数として保存する。
+
+公開関数内の補間へは、有効性を元サンプルで確定した後に有限磁場サンプルだけを渡す。
+これはxarray補間が隣のNaNをexactな有限サンプルへ伝播させることを避けるためで、
+欠損をまたぐ補間を再許可する処理ではない。有限サンプルが1個だけなら、そのexact時刻に一致する
+粒子時刻だけが有効になり、公開線形補間器のための定数ガード点を使用する。ガード点は
+観測値として保存せず、元の磁場配列はそのまま保持する。
+
+今回も新しいプロファイルになる。旧`partial`・失敗・除外は`--reuse-results-from`では引き継がず、
+新しい規則で再判定する。新規プロファイルで作成したpartialは通常の再開でSHA256を確認して再利用する。
+DSI→GSM変換はcomplete/partialを入力に取り、元時刻列と理由マスクを引き継いで無効時刻をNaNに保つ。
+DSI入力がpartialという理由だけでは同じ変換を自動再試行しない。
+
+外部通信なしの合成CDF検証：
+
+```bash
+.venv_pyspedas/bin/python lepi_moment_batch/check_partial_worker.py
+```
+
+降順エネルギー表と正の密度・有限な流速を持つ合成データで、正常時刻の48系列が参照計算と一致すること、
+1時刻だけ計算可能な場合、範囲外・FILLVAL・ギャップ・ゼロ磁場の理由、全時刻不能を確認する。
+
+## 計算の並列数と再判定
+
+`--compute-workers N`で、5分チャンクを最大N個の独立プロセスで同時に計算する。既定は1。
+呼び出し元のCPU affinityに含まれるCPUから各ワーカーへ異なるCPUを1つずつ割り当て、
+NumPy等の内部スレッド数は1に保つ。指定数が利用可能CPU数を超える場合は起動しない。
+request/result/logはチャンクごとに分離し、親が入力CDFを一度展開して読み取り専用で共有する。
+時刻索引はatomic保存する。日内の全ワーカー終了を待ってから、その日以前のscratchを清掃する。
+Ctrl+C/SIGTERMでは実行中の計算を終了させ、結果を回収して状態を記録する。
+各プロセスの3 GiB仮想メモリ上限・CPU時間上限・wall timeoutは維持する。
+`--pause-seconds`は成功チャンク後の各ワーカー枠の待機。0ならその待機を省く。
+
+```bash
+.venv_pyspedas/bin/python lepi_moment_batch/batch.py --year 2022 \
+  --download-workers 8 --compute-workers 4 --pause-seconds 0 \
+  --reuse-results-from /mnt/j/observation_data/Arase_LEPi_moments/native_dsi_7974a6054c9a
+```
+
+このコマンドでは旧`complete`だけを検証して引き継ぎ、旧`no_data`・`missing_mgf`等は再判定する。
+新プロファイルで既に確定した除外も再判定したい場合は`--recheck-excluded`を追加する。
+実装が同じなら計算ワーカー数・待機時間の変更でプロファイルは変わらない。
+取得と計算の段階は分けたままで、ダウンロード数を増やす操作とは独立している。
+
+合成CDFの8チャンクを1・2・4・8並列で比較した所要時間は23.36・12.12・8.63・5.10秒。
+全80配列（48 moment系列を含む）が一致し、最大RSSは各ワーカー約225 MiBだった。
+これは少数レコードの合成データ試験で、実データの速度・メモリ消費を保証しない。
+外部通信なしで検証を繰り返せる：
+
+```bash
+.venv_pyspedas/bin/python lepi_moment_batch/check_parallel_compute.py
+```
 
 ## 保存構成
 
@@ -154,24 +317,43 @@ CRC・展開サイズを検証し、展開ファイルのSHA256を保持する�
 保存は一時ファイルへ行い、全配列を再読み込みで照合してからatomic renameする。
 完了済み区間は設定・入力の一致とNPZファイルのSHA256を確認してスキップする。
 入力更新や保存ファイル破損で再計算する場合、以前のNPZを `superseded/` へ移して保持する。
-科学解析で使うのは **状態が `complete` の区間** とする。`running`、失敗、旧保存物は含めない。
+科学解析で使えるのは **`complete`と`partial`の有効レコード**。`partial`では必ず
+`moment_valid`と各物理量の有限性を確認し、`running`・失敗・旧保存物は含めない。
 
 | 状態 | 意味・再実行 |
 |---|---|
-| `complete` | 計算・保存・照合完了。互換性とファイル整合性が通ればスキップ |
-| `no_data` | 検証済みLEP-i CDFに区間内のスピン時刻がない。入力と取得証跡が一致すればスキップ |
-| `remote_absent` | 正常なサーバーindexに対象ファイルがない、またはディレクトリが404。次の起動で再照会 |
-| `failed_download` | 通信・HTTP・転送長の失敗、未検証のoffline入力。再実行で再取得 |
-| `failed_authorization` | HTTP 401/403。欠測にはしない。認証・公開状況を確認後に再実行 |
-| `failed_validation` | CDF構造・必要変数・時刻等の検証失敗。再試行では新たにダウンロード |
-| `missing_mgf` | 磁場不足、非有限値、補間ギャップ超過等。再実行で再確認 |
-| `failed_stage` | 展開失敗等。同じ日を何百回も試さず、その日の残りを打ち切る |
-| `failed` / `timeout` / `interrupted` | 未完了。再実行で再計算 |
+| `complete` | 全粒子時刻が磁場条件を満たし、計算・保存・照合完了。条件・入力・NPZ SHA256が一致すればスキップ |
+| `partial` | 一部の粒子時刻だけ計算可能。有効時刻のmomentを保存し、無効時刻はNaN。同じ入力・SHA256なら再開時にスキップ |
+| `excluded` | 必須ファイルの確認済み不在、検証済みCDF内のサンプル不在、または磁場の時間範囲・ギャップ条件不足。理由と根拠を記録 |
+| `failed_download` | 通信・HTTP・転送長の失敗、未検証のoffline入力。確認済み不在とは区別 |
+| `failed_authorization` | HTTP 401/403。認証・公開状況を確認後に再実行 |
+| `failed_validation` | CDF構造不整合、磁場の非有限値・ゼロ値等。`failure_class`で区別 |
+| `failed_stage` | 展開失敗等。その日の残りを打ち切る |
+| `failed` / `timeout` / `interrupted` | 計算・ワーカー管理の失敗、計算時間超過、中断。理由と再試行可否を記録 |
 
-終了コードは正常完了0、未取得・失敗区間があれば2、ロック競合3、中断130。
-`no_data` はCDF内の時刻不在を意味し、プラズマが存在しないことを意味しない。
+新しいチャンク状態では`no_data`・`missing_mgf`・`remote_absent`を出力しない。
+取得単位の`remote_absent`は、公式indexの不在証跡として引き続き保存する。
+終了コードは正常完了・`partial`・確定除外のみなら0、未取得・失敗区間があれば2、ロック競合3、中断130。
+除外は観測された物理量がゼロであることや、衛星で観測されなかったことの証明ではない。
 必要な隣接CDFの取得状況が不明なら、その区間は失敗として残す。
-確認済みのサーバー上の不在は証跡を保存するが、衛星で観測されなかったことの証明ではない。
+
+| `failure_class` | 分類 |
+|---|---|
+| `required_input_missing_remote` | 公式indexで必須LEP-i/MGFファイルの不在を確認。`excluded` |
+| `empty_lepi_data` / `empty_mgf_data` | 検証済み入力に必要なサンプルがない。`excluded` |
+| `insufficient_mgf_coverage` | 磁場が全粒子時刻を囲まない、または許容補間ギャップ超過。`excluded` |
+| `invalid_mgf_field` / `invalid_mgf_schema` | 磁場の非有限値・ゼロ値、必要変数不足。`failed_validation` |
+| `catalog_timeout` / `download_timeout` | index取得／ファイル取得のタイムアウト。`failed_download` |
+| `http_error` / `download_error` / `authorization_error` | HTTP・通信・認証の失敗 |
+| `input_validation_error` / `unverified_input` | CDF検証失敗、検証済みoffline入力がない等 |
+| `compute_timeout` / `worker_exit` / `calculation_error` | 計算時間超過・プロセス異常終了・計算中の例外 |
+
+`retryable`は自動再試行の可否を表す。追加の自動再試行パスは、従来どおり取得失敗に関係する区間だけを対象とする。
+`excluded`は`retryable: false`と`exclusion_basis`を保存し、月別summaryには理由別件数も保存する。
+同じプロファイルの除外を再評価するには`--recheck-excluded`を指定する。
+これは再計算・再判定を有効にする指定で、キャッシュ済みCDFの版や内容を更新する指定ではない。
+新しい版・更新された内容も調べる場合は`--refresh-downloads`を併用する。
+公式indexの不在は通常起動でも再照会され、入力証跡が変われば従来の除外を再利用しない。
 
 ## 取得の検証と再試行
 
@@ -233,7 +415,8 @@ KAWが同時に同じrawファイルを更新する場合は、その指紋の�
 そのための再取得は不要で、`--offline` でも再検証できる。同一実行中は指紋の変化も確認する。計算開始・保存直前にも確認し、
 別プロファイルの再取得等で入力が途中変更された場合は結果を公開しない。
 保存後に壊れたキャッシュや未検証入力は使用せず、再取得する。
-`no_data` の再開には検証済み入力の証跡が必要で、以前の未検証 `no_data` は引き継がない。
+旧`no_data`・`missing_mgf`は再開・旧結果の引き継ぎでスキップしない。
+新しい`excluded`は、分類版・除外根拠・入力証跡が一致する場合だけ通常の再開でスキップする。
 
 ```bash
 # サーバーの最新版本と取得内容を確認し直す。

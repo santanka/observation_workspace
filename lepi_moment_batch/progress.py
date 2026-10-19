@@ -32,11 +32,11 @@ class Progress:
 
     def finish(self, counts):
         if self.bar is not None:
-            empty = counts['no_data'] + counts['remote_absent']
+            empty = counts['excluded'] + counts['skipped_excluded']
             failed = sum(n for status, n in counts.items()
-                         if status not in {'complete', 'skipped_verified', 'no_data', 'remote_absent'})
+                         if status not in {'complete', 'partial', 'skipped_partial', 'skipped_verified', 'excluded', 'skipped_excluded'})
             self.bar.set_postfix(ok=counts['complete'], skip=counts['skipped_verified'],
-                                 empty=empty, failed=failed, refresh=False)
+                                 partial=counts['partial'] + counts['skipped_partial'], excluded=empty, failed=failed, refresh=False)
             self.bar.update(1)
 
     def __exit__(self, *exc):

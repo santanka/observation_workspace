@@ -26,9 +26,11 @@ DSI→J2000→GSMという[ERG-SCの変換経路](https://ergsc.isee.nagoya-u.ac
   --start 2022-09-29T05:05 --end 2022-09-29T05:10 --offline
 ```
 
-対象は起動時に存在する **verified completeのDSI区間**。選択範囲に丸ごと入る5分区間だけを処理する。
+対象は起動時に存在する **verified complete/partialのDSI区間**。選択範囲に丸ごと入る5分区間だけを処理する。
 DSIのbatchが進行中でも実行できるが、その後できた区間は次の同じコマンドで取り込む。
-DSIのrunning・no_data・失敗区間をGSMのcompleteとして扱わない。
+DSIのrunning・excluded・失敗区間は対象にしない。partialの有効レコードを変換し、
+元の全時刻列、`moment_valid`、`moment_invalid_reason`を保持する。無効時刻のGSM流速はNaN。
+旧completeにマスクがなければ全時刻有効とみなすが、partial入力のマスク欠落や状態との不整合は拒否する。
 入力DSIはstateとNPZのSHA256・profile・座標表記を確認する。
 
 既定出力は `/mnt/j/observation_data/Arase_LEPi_GSM_velocity/gsm_observed_<hash>/YYYY/MM/`。
@@ -62,7 +64,8 @@ with np.load(path, allow_pickle=False) as data:
 `SPEDAS_DATA_DIR` の既定は `/mnt/j/observation_data/`。pySPEDASの `ERG_DATA_DIR` が設定されている場合は
 その上書き規則にも従う。取得後は必要な変数・全レコードの読み取り・単位・SHA256・ロード前後の指紋を検証する。
 取得・ロード失敗は欠測と断定せず、日単位で記録し、処理可能な別の日を続ける。
-既定では取得最大3回、間隔30秒。全対象を一巡後、失敗・partial区間を追加1巡する。
+既定では取得最大3回、間隔30秒。全対象を一巡後、失敗区間と、有効な元moment時刻に回転不能が残るpartial区間を追加1巡する。
+元DSIがpartialという理由だけでは再試行しない。
 `--download-attempts`, `--retry-delay`, `--retry-passes` で変更できる。
 `--offline` はローカル取得だけを使い、追加巡を行わない。
 
@@ -85,9 +88,11 @@ raw品質列と姿勢データ生成時の補間間隔は保存するが、今�
 
 rotation_qualityのbit値: `1`=姿勢不足、`2`=軌道不足、`4`=DSI基底が退化、`8`=回転行列不整合。
 変換不能点は時刻を保持してNaNを保存する。全点不能でもpartialとして診断を保存する。
-`complete` は全レコードの回転が有効、`partial` は一部または全部が無効。
+`complete`は全レコードのDSI momentと回転が有効、`partial`は元momentまたは回転に無効な時刻がある場合。
+`moment_valid`は元momentの計算可否、`rotation_valid`は回転の可否、各種の`*__velocity_valid`は
+実際に有限なGSM流速を得られたかを表す。DSIや回転が有効でも元流速がNaNならvelocity_validはfalse。
 再開したpartialは `skipped_partial` と数える。partialをcompleteへ読み替えない。
-終了コードは0=対象区間の回転完了、2=failed/partialが残る、3=同一profileの実行競合、130=中断。
+終了コードは0=元momentが有効な時刻の回転完了（元DSI由来のpartialを含む）、2=failedまたは必要な回転不能が残る、3=同一profileの実行競合、130=中断。
 **対象区間の回転完了は、要求月全体のDSI生成完了や、3種すべての流速が有限であることを意味しない。**
 
 1 CPU、nice=19、idle I/O、数値ライブラリ1スレッド。メモリ空き8 GiB未満で新しい区間を待機する。

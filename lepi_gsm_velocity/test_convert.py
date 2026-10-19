@@ -64,6 +64,45 @@ class Tests(unittest.TestCase):
             self.assertFalse(saved['FPDU__velocity_valid'].any())
         self.assertEqual(self.run_chunk(),'skipped_partial')
 
+    def make_partial_source(self):
+        with np.load(self.input,allow_pickle=False) as saved:
+            arrays={key:saved[key] for key in saved.files}
+        arrays['moment_valid']=np.array([True,False])
+        arrays['moment_invalid_reason']=np.array([0,2],dtype=np.uint8)
+        # Finite invalid-row values must be masked even if a source is malformed.
+        np.savez(self.input,**arrays)
+        state=json.loads(self.path.read_text())
+        state.update(status='partial',output_sha256=convert.sha(self.input))
+        convert.atomic_json(self.path,state)
+
+    def test_partial_native_source_preserves_mask_and_times(self):
+        self.make_partial_source()
+        before=convert.sha(self.input)
+        self.assertEqual(self.run_chunk(),'partial')
+        with np.load(self.output,allow_pickle=False) as saved:
+            np.testing.assert_array_equal(saved['time_unix'],[4.,12.])
+            np.testing.assert_array_equal(saved['moment_valid'],[True,False])
+            np.testing.assert_array_equal(saved['moment_invalid_reason'],[0,2])
+            for var in convert.SPECIES:
+                np.testing.assert_allclose(saved[var+'__velocity_gsm_observed'][0],[200.,-10.,2.],atol=1e-12)
+                self.assertTrue(np.isnan(saved[var+'__velocity_gsm_observed'][1]).all())
+                np.testing.assert_array_equal(saved[var+'__velocity_valid'],[True,False])
+        state=json.loads((self.target/self.path.relative_to(self.source)).read_text())
+        self.assertFalse(state['rotation_incomplete'])
+        self.assertEqual(state['valid_source_moment_records'],1)
+        self.assertEqual(convert.sha(self.input),before)
+        self.assertEqual(self.run_chunk(),'skipped_partial')
+        a=dt.datetime(1970,1,1,tzinfo=convert.UTC)
+        self.assertEqual(len(convert.inventory(self.source,a,a+dt.timedelta(days=1))),1)
+
+    def test_partial_without_mask_or_inconsistent_mask_is_rejected(self):
+        state=json.loads(self.path.read_text());state['status']='partial'
+        convert.atomic_json(self.path,state)
+        with self.assertRaisesRegex(ValueError,'lacks per-record'): self.run_chunk()
+        self.make_partial_source()
+        state=json.loads(self.path.read_text());state['status']='complete';convert.atomic_json(self.path,state)
+        with self.assertRaisesRegex(ValueError,'inconsistent'): self.run_chunk()
+
     def test_source_hash_corruption_refused(self):
         self.input.write_bytes(b'bad')
         with self.assertRaisesRegex(ValueError,'SHA256 mismatch'): self.run_chunk()

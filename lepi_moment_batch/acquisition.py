@@ -1,4 +1,6 @@
-"""Serial verified acquisition into the standard SPEDAS raw-data cache."""
+"""Verified acquisition into the shared SPEDAS cache, with isolated prefetch workers."""
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
+import threading
 from contextlib import contextmanager
 import datetime as dt
 import fcntl
@@ -22,6 +24,17 @@ import urllib.request
 from batch import BASE, atomic_json, fingerprint, sha_file, stage_cdf, wait_resources
 
 REMOTE = 'https://ergsc.isee.nagoya-u.ac.jp/data/ergsc/satellite/erg/'
+
+
+def worker_argument(value):
+    """Keep repeated CLI path arguments JSON-compatible in isolated workers."""
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, (list, tuple)):
+        return [worker_argument(item) for item in value]
+    if isinstance(value, dict):
+        return {key: worker_argument(item) for key, item in value.items()}
+    return value
 
 
 class AcquisitionError(RuntimeError):
@@ -382,6 +395,7 @@ class Acquisition:
                             status = 'failed_authorization'
                         print(f'acquisition {key} attempt {number}: {status}: {exc}', flush=True)
                         attempts.append({'attempt': number, 'status': status, 'reason': str(exc),
+                                         'exception_type': type(exc).__name__,
                                          'http_status': getattr(exc, 'code', None), 'phase': phase,
                                          **self.last_http, 'http_read_timeout_seconds': self.args.http_timeout,
                                          'download_wall_timeout_seconds': self.args.download_timeout,
@@ -423,6 +437,100 @@ class Acquisition:
         self.network_failure_streak = 0
         return keys
 
+    def acquire_isolated(self, product, date, catalogs, cancelled):
+        """Called by a supervising thread; all acquisition runs in a child main thread."""
+        folder = self.scratch / 'prefetch'
+        folder.mkdir(parents=True, exist_ok=True)
+        job = Path(tempfile.mkdtemp(prefix=unit(product, date)['key'] + '_', dir=folder))
+        request, result_path = job / 'request.json', job / 'result.json'
+        arguments = worker_argument(vars(self.args))
+        arguments['validation_lock'] = str(folder / '.validation.lock')
+        atomic_json(request, {'args': arguments, 'scratch': str(job), 'product': product,
+                              'date': date.isoformat(), 'catalogs': catalogs})
+        proc = None
+        try:
+            if cancelled.is_set():
+                raise InterruptedError('Prefetch cancelled')
+            proc = subprocess.Popen([sys.executable, str(BASE / 'acquisition_worker.py'),
+                                     '--request', str(request), '--result', str(result_path)],
+                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True)
+            while True:
+                try:
+                    output, _ = proc.communicate(timeout=0.2)
+                    break
+                except subprocess.TimeoutExpired:
+                    if cancelled.is_set():
+                        raise InterruptedError('Prefetch cancelled')
+            if output:
+                print(output.decode(errors='replace'), end='', flush=True)
+            if proc.returncode or not result_path.exists():
+                raise AcquisitionError('failed_download', f'Acquisition worker failed: {proc.returncode}',
+                                       unit=unit(product, date)['key'])
+            response = json.loads(result_path.read_text())
+            if 'error' in response:
+                error = response['error']
+                raise AcquisitionError(error['status'], error['reason'], error['retryable'], **error['details'])
+            return response
+        finally:
+            if proc is not None and proc.poll() is None:
+                os.killpg(proc.pid, signal.SIGTERM)
+                try:
+                    proc.communicate(timeout=3.)
+                except subprocess.TimeoutExpired:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                    proc.communicate()
+            shutil.rmtree(job, ignore_errors=True)
+
+    def prefetch_parallel(self, planned, bar, workers):
+        cancelled = threading.Event()
+        pool = ThreadPoolExecutor(max_workers=workers)
+        pending = {}
+        remaining = iter(planned)
+        statuses = {}
+
+        def submit_next():
+            for product, date in remaining:
+                key = unit(product, date)['key']
+                if key in self.results:
+                    result = self.ensure(product, date)
+                    statuses[key] = result['status']
+                    bar.update(1)
+                    continue
+                catalogs = {k: v for k, v in self.catalogs.items() if not isinstance(v, Exception)}
+                pending[pool.submit(self.acquire_isolated, product, date, catalogs, cancelled)] = key
+                return
+
+        try:
+            for _ in range(workers):
+                submit_next()
+            while pending:
+                ready, _ = wait(pending, return_when=FIRST_COMPLETED)
+                for future in ready:
+                    key = pending.pop(future)
+                    response = future.result()
+                    result = response['result']
+                    self.results[key] = result
+                    self.catalogs.update(response['catalogs'])
+                    statuses[key] = result['status']
+                    bar.set_postfix(status=result['status'], workers=workers, refresh=False)
+                    bar.update(1)
+                    if result['status'] in ('failed_download', 'failed_authorization'):
+                        self.network_failure_streak += 1
+                    else:
+                        self.network_failure_streak = 0
+                    limit = getattr(self.args, 'max_network_failures', 0)
+                    if limit and self.network_failure_streak >= limit:
+                        raise AcquisitionError('failed_download',
+                            f'Stopping after {limit} consecutive granule acquisition failures; resolve network then resume',
+                            retryable=False, unit=key)
+                # Do not replenish before all completed results pass the circuit breaker.
+                for _ in ready:
+                    submit_next()
+        finally:
+            cancelled.set()
+            pool.shutdown(wait=True, cancel_futures=True)
+        return statuses
+
     def prefetch(self, intervals, cadence, progress_mode='auto'):
         """Acquire all distinct granules before calculation; never retain expanded month data."""
         planned = {}
@@ -449,7 +557,11 @@ class Acquisition:
         statuses = {}
         with tqdm(total=len(planned), desc='Acquire/verify', unit='file', disable=not enabled,
                   file=sys.stderr, mininterval=1., dynamic_ncols=True) as bar:
-            for product, date in sorted(planned.values(), key=lambda x: (x[1], x[0])):
+            ordered = sorted(planned.values(), key=lambda x: (x[1], x[0]))
+            workers = getattr(self.args, 'download_workers', 1)
+            if workers > 1 and not self.args.offline:
+                return self.prefetch_parallel(ordered, bar, workers)
+            for product, date in ordered:
                 try:
                     result = self.ensure(product, date)
                     statuses[result['unit']['key']] = result['status']

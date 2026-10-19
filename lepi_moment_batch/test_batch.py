@@ -70,8 +70,19 @@ class BatchTests(unittest.TestCase):
             self.assertFalse(batch.resume_valid(state, out, 'profile', 'inputs'))
             batch.atomic_json(state, {'status': 'no_data', 'profile_hash': 'profile',
                                      'input_signature': 'inputs', 'input_verification': 'verified'})
-            self.assertTrue(batch.resume_valid(state, out, 'profile', 'inputs'))
+            self.assertFalse(batch.resume_valid(state, out, 'profile', 'inputs'))
             self.assertFalse(batch.resume_valid(state, out, 'profile', 'changed inputs'))
+
+    def test_partial_resume_checks_hash_and_inputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);state=root/'state.json';out=root/'data.npz'
+            out.write_bytes(b'partial product')
+            batch.atomic_json(state,{'status':'partial','profile_hash':'p','input_signature':'s',
+                                    'input_verification':'verified','output_sha256':batch.sha_file(out)})
+            self.assertTrue(batch.resume_valid(state,out,'p','s'))
+            self.assertFalse(batch.resume_valid(state,out,'p','new'))
+            out.write_bytes(b'changed')
+            self.assertFalse(batch.resume_valid(state,out,'p','s'))
 
     def test_abort_report_retains_current_run_counts(self):
         from collections import Counter

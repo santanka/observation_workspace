@@ -18,6 +18,8 @@ import sys
 import tempfile
 import time
 import zlib
+import zipfile
+import io
 
 BASE = Path(__file__).resolve().parent
 WORKSPACE = BASE.parent
@@ -25,6 +27,9 @@ DEFAULT_INPUT = Path(os.environ.get('SPEDAS_DATA_DIR', '/mnt/j/observation_data'
 DEFAULT_OUTPUT = Path('/mnt/j/observation_data/Arase_LEPi_moments')
 UTC = dt.timezone.utc
 CHUNK_SECONDS = 300
+MOMENT_TIME_POLICY = 'per_particle_mgf_valid_v1'
+MOMENT_INVALID_BITS = {'outside_mgf_support': 1, 'nonfinite_mgf_bracket': 2,
+                       'mgf_gap_exceeded': 4, 'zero_interpolated_mgf': 8}
 
 
 def atomic_json(path, value):
@@ -158,7 +163,7 @@ def profile(args):
               'erg_pgs_limit_range', 'erg_convert_flux_units', 'get_lepi_flux_angle_in_sga',
               'erg_pgs_moments_tplot']
     paths = [BASE / 'batch.py', BASE / 'worker.py', BASE / 'acquisition.py',
-             BASE / 'validate_input.py', WORKSPACE / 'lepi_moment_pilot/pilot.py']
+             BASE / 'validate_input.py', BASE / 'acquisition_worker.py', BASE / 'compute.py', WORKSPACE / 'lepi_moment_pilot/pilot.py']
     paths += [package / ('projects/erg/satellite/erg/particle/' + n + '.py') for n in leaves]
     paths += [package / ('particles/moments/' + n + '.py')
               for n in ['spd_pgs_moments', 'moments_3d', 'moments_3d_omega_weights']]
@@ -175,6 +180,7 @@ def profile(args):
               'duplicate_record_policy': 'within granule: identical payload only, retain last; across granules: last dated source',
               'sub_anodes_used': False, 'mgf_cadence': args.mgf_cadence,
               'max_mgf_gap_seconds': args.max_mgf_gap_seconds,
+              'moment_time_policy': MOMENT_TIME_POLICY,
               'packages': package_versions,
               'sources': {str(p): sha_file(p) for p in paths}}
     identity = hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()
@@ -203,6 +209,10 @@ def wait_resources(args, scratch, expanded_size=0):
         time.sleep(10)
     if shutil.disk_usage(scratch).free < expanded_size + args.scratch_reserve_gib * 1024**3:
         raise RuntimeError('Insufficient scratch disk space after expansion reserve')
+
+
+def date_key(source):
+    return re.search(r'_(\d{8})(?:\d{2})?_v', Path(source).name).group(1)
 
 
 def stage_cdf(source, cache, args):
@@ -280,24 +290,184 @@ def resume_valid(state_path, output, identity, signature):
         state = json.loads(state_path.read_text())
         if state.get('profile_hash') != identity or state.get('input_signature') != signature:
             return False
-        if state['status'] == 'no_data':
-            return state.get('input_verification') == 'verified' and not output.exists()
-        return (state['status'] == 'complete' and state.get('input_verification') == 'verified' and output.exists()
+        if state['status'] == 'excluded':
+            return (state.get('classification_version') == 1 and state.get('retryable') is False
+                    and state.get('exclusion_basis') in {'verified_remote_index', 'verified_cdf_timestamps', 'verified_mgf_coverage'}
+                    and not output.exists())
+        return (state['status'] in {'complete', 'partial'} and state.get('input_verification') == 'verified' and output.exists()
                 and state['output_sha256'] == sha_file(output))
     except (OSError, ValueError, KeyError):
         return False
 
 
+# Only these reviewed predecessor implementations may supply reusable results.
+REUSABLE_RUNNER_SOURCES = {
+    str(BASE / 'batch.py'): '472276f697d77f7e5b6aea47616769bc5d701ea82b8671159d0867c54408f4c6',
+    str(BASE / 'worker.py'): 'c41d4d91211b9d7f57623c4f1bae5184e54788fd6007d0b34d10bd03324e338c',
+    str(BASE / 'acquisition.py'): '755fb58afb0336903d6b3936d83cbb56e4194e7a6704186ec12286898daef14f',
+}
+REUSABLE_PARALLEL_DOWNLOAD_SOURCES = {
+    str(BASE / 'batch.py'): '82d571609b75dd450f9b2af3c1e6f52f528c8cce7326565325cbb68a51c1bb62',
+    str(BASE / 'acquisition.py'): '738d42352aac4b827f80e49a208e707188f2c09c0861b9e7fa68ddf31b38a1ec',
+}
+REUSABLE_COMPUTE_SOURCES = {
+    str(BASE / 'acquisition.py'): '22c8bf81888f25d30879fe5e0114c8abef54991f17a17801c72cfdb8a2b45577',
+    str(BASE / 'batch.py'): 'c1edda83f4a03a141d51d1e290fff29529fce17c25ce98f24be3d1dad8d1fa0b',
+    str(BASE / 'worker.py'): '5ae0ac72bb4522177859a632b3db4de51cca6308c6e5f007d419271c3da5bc78',
+    str(BASE / 'compute.py'): 'a204ca942d52e01d0006e199f25cbd35520568107fc23ff92fa1223cf13a889f',
+}
+REUSABLE_FAST_RUNNER_SOURCES = {
+    str(BASE / 'batch.py'): '334992358701fbb277e7fdc13bf7c26da5d1037c82e291778b2c61d9c6013af8',
+    str(BASE / 'worker.py'): '5108d90b2e8c933c4415ece5fcdfb403caf2a1f8e6a5be67dfdacf20e43e2101',
+}
+
+
+def compatible_reuse_root(root, config):
+    root = Path(root).resolve()
+    profile = json.loads((root / 'profile.json').read_text())
+    old = profile['config']
+    identity = hashlib.sha256(json.dumps(old, sort_keys=True).encode()).hexdigest()
+    if identity != profile['profile_hash'] or root.name != 'native_dsi_' + identity[:12]:
+        raise ValueError('Reuse profile identity is invalid')
+    if (old.get('moment_time_policy') not in (None, config.get('moment_time_policy'))
+            or {k: v for k, v in old.items() if k not in {'sources', 'moment_time_policy'}}
+            != {k: v for k, v in config.items() if k not in {'sources', 'moment_time_policy'}}):
+        raise ValueError('Reuse calculation conditions/packages differ')
+    added = {str(BASE / 'acquisition_worker.py'), str(BASE / 'compute.py')}
+    if set(old['sources']) - set(config['sources']) or set(config['sources']) - set(old['sources']) - added:
+        raise ValueError('Reuse source inventory differs')
+    for path, old_hash in old['sources'].items():
+        if old_hash not in (config['sources'][path], REUSABLE_RUNNER_SOURCES.get(path),
+                            REUSABLE_FAST_RUNNER_SOURCES.get(path), REUSABLE_PARALLEL_DOWNLOAD_SOURCES.get(path),
+                            REUSABLE_COMPUTE_SOURCES.get(path)):
+            raise ValueError('Reuse scientific/unsupported source differs: ' + path)
+    return root, identity
+
+
+def reuse_result(previous, root, state_path, output, identity, signature, common, config):
+    if previous is None or output.exists():
+        return False
+    old_root, old_identity = previous
+    old_state = old_root / state_path.relative_to(root)
+    old_output = old_root / output.relative_to(root)
+    try:
+        state = json.loads(old_state.read_text())
+        if state.get('status') != 'complete' or not resume_valid(old_state, old_output, old_identity, state['input_signature']):
+            return False
+        # A validator identity can change after orchestration edits; the verified
+        # raw bytes, file fingerprints, units and absence evidence must still match.
+        def evidence(proof):
+            return [{k: v for k, v in x.items() if k != 'validation_identity'} for x in proof]
+        if (common['input_verification'] != 'verified'
+                or evidence(state['acquisition_evidence']) != evidence(common['acquisition_evidence'])):
+            return False
+        if state['status'] == 'complete':
+            output.parent.mkdir(parents=True, exist_ok=True)
+            # Preserve every numerical .npy payload byte-for-byte. Only the
+            # manifest is updated so downstream GSM conversion sees this profile.
+            import numpy as np
+            fd, temp = tempfile.mkstemp(dir=output.parent, suffix='.reuse')
+            try:
+                with os.fdopen(fd, 'wb') as dest, zipfile.ZipFile(old_output) as source:
+                    manifest = json.loads(str(np.load(io.BytesIO(source.read('manifest_json.npy')), allow_pickle=False)))
+                    if manifest['profile_hash'] != old_identity:
+                        return False
+                    epoch = np.load(io.BytesIO(source.read('epoch_tt2000.npy')), allow_pickle=False)
+                    n = len(epoch)
+                    added_arrays = {}
+                    for name, values in {'moment_valid': np.ones(n, dtype=bool),
+                                         'moment_invalid_reason': np.zeros(n, dtype=np.uint8)}.items():
+                        if name + '.npy' not in source.namelist():
+                            added_arrays[name] = values
+                        elif not np.array_equal(np.load(io.BytesIO(source.read(name+'.npy')), allow_pickle=False), values):
+                            return False
+                    metadata = manifest.setdefault('metadata', {})
+                    metadata['moment_selection'] = {'policy': MOMENT_TIME_POLICY, 'invalid_reason_bits': MOMENT_INVALID_BITS,
+                                                    'records': n, 'computed_records': n, 'invalid_records': 0,
+                                                    'invalid_reason_counts': {key: 0 for key in MOMENT_INVALID_BITS},
+                                                    'legacy_complete_upgraded': True}
+                    for name, value in added_arrays.items():
+                        manifest.setdefault('array_sha256', {})[name] = hashlib.sha256(value.tobytes()).hexdigest()
+                    manifest.update(profile_hash=identity, input_signature=signature, config=config,
+                                    acquisition_evidence=common['acquisition_evidence'],
+                                    reused_from={'profile_hash': old_identity, 'output': str(old_output),
+                                                 'output_sha256': state['output_sha256']})
+                    buffer = io.BytesIO()
+                    np.save(buffer, json.dumps(manifest), allow_pickle=False)
+                    with zipfile.ZipFile(dest, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=1) as target:
+                        for entry in source.infolist():
+                            if entry.filename == 'manifest_json.npy':
+                                target.writestr(entry.filename, buffer.getvalue())
+                            else:
+                                with source.open(entry) as inp, target.open(entry.filename, 'w', force_zip64=True) as out:
+                                    shutil.copyfileobj(inp, out, 1024**2)
+                        for name, value in added_arrays.items():
+                            array_buffer = io.BytesIO()
+                            np.save(array_buffer, value, allow_pickle=False)
+                            target.writestr(name+'.npy', array_buffer.getvalue())
+                    dest.flush()
+                    os.fsync(dest.fileno())
+                if sha_file(old_output) != state['output_sha256']:
+                    return False
+                os.replace(temp, output)
+                state.update(output=str(output), output_sha256=sha_file(output), file_bytes=output.stat().st_size,
+                             computed_records_per_species=n, invalid_records_per_species=0, valid_moment_fraction=1.,
+                             moment_invalid_reason_counts={key: 0 for key in MOMENT_INVALID_BITS})
+            finally:
+                Path(temp).unlink(missing_ok=True)
+        elif output.exists():
+            return False
+        atomic_json(state_path, {**state, **common, 'profile_hash': identity,
+                                'input_signature': signature,
+                                'reused_from': {'profile_hash': old_identity, 'state': str(old_state),
+                                                'output': str(old_output) if state['status'] == 'complete' else None}})
+        return True
+    except (OSError, ValueError, KeyError, zipfile.BadZipFile, EOFError):
+        return False
+
+
+def reuse_profiles(paths, config):
+    """Validate candidate profiles once, preserving the user's priority order."""
+    if paths is None:
+        return []
+    if isinstance(paths, (str, Path)):
+        paths = [paths]
+    candidates = []
+    seen = set()
+    for path in paths:
+        candidate = compatible_reuse_root(path, config)
+        if candidate[0] not in seen:
+            candidates.append(candidate)
+            seen.add(candidate[0])
+    return candidates
+
+
+def reuse_first_result(candidates, *args):
+    """Try the next profile when a chunk is absent, failed or fails integrity checks."""
+    return any(reuse_result(candidate, *args) for candidate in candidates)
+
+
 def monthly_summary(month_dir):
     statuses = Counter()
+    reasons = Counter()
+    record_counts = Counter()
     for path in (month_dir / 'state').glob('*/*.json'):
         try:
-            statuses[json.loads(path.read_text())['status']] += 1
+            state = json.loads(path.read_text())
+            statuses[state['status']] += 1
+            if state['status'] in {'complete', 'partial'}:
+                n = state.get('records_per_species', 0)
+                record_counts['native_records_in_saved_products'] += n
+                record_counts['computed_records_in_saved_products'] += state.get('computed_records_per_species', n)
+                record_counts['invalid_records_in_saved_products'] += state.get('invalid_records_per_species', 0)
+            if state.get('failure_class'):
+                reasons[state['failure_class']] += 1
         except (ValueError, KeyError):
             statuses['invalid_state'] += 1
     # This is an inventory, not a claim of full-month observation coverage.
     atomic_json(month_dir / 'summary.json', {'updated_utc': dt.datetime.now(UTC).isoformat(),
-                'chunk_state_counts': dict(statuses),
+                'chunk_state_counts': dict(statuses), 'failure_class_counts': dict(reasons),
+                'record_counts': dict(record_counts),
                 'scope': 'Inventory of attempted chunks; does not imply a fully processed month'})
 
 
@@ -319,11 +489,29 @@ def track_run(root, start, end, identity, counts):
                                            'updated_utc': dt.datetime.now(UTC).isoformat()})
 
 
+def acquisition_failure_class(failures):
+    item = failures[0]
+    status = item['status']
+    if status == 'failed_authorization':
+        return 'authorization_error'
+    if status == 'failed_validation':
+        return 'input_validation_error'
+    attempts = item.get('attempts', [])
+    timed_out = any('timeout' in x.get('reason', '').lower() or 'timed out' in x.get('reason', '').lower() for x in attempts)
+    if timed_out:
+        return 'catalog_timeout' if attempts[-1].get('phase') == 'catalog' else 'download_timeout'
+    if attempts and attempts[-1].get('http_status'):
+        return 'http_error'
+    return 'download_error' if attempts else 'unverified_input'
+
+
 def run(args, start, end, identity, config):
     root = args.output_root / ('native_dsi_' + identity[:12])
+    reuse_candidates = reuse_profiles(getattr(args, 'reuse_results_from', None), config)
     root.mkdir(parents=True, exist_ok=True)
     scratch = args.scratch_root / identity[:12]
     scratch.mkdir(parents=True, exist_ok=True)
+    from compute import ComputePool
     from acquisition import Acquisition
     acquisition = Acquisition(args, scratch)
     from progress import Progress
@@ -338,6 +526,11 @@ def run(args, start, end, identity, config):
                 del counts[previous]
         chunk_statuses[label] = status
         counts[status] += 1
+    def finished(label, state):
+        record(label, state['status'])
+        progress.finish(counts)
+        print(f'{state["start_utc"]} {state["status"]}: {state.get("failure_class", "")}', flush=True)
+
     with Progress(total, getattr(args, 'progress', 'auto')) as progress, (root / '.run.lock').open('a+') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         # A separate lock protects scratch even if an alternate output root is used.
@@ -384,111 +577,94 @@ def run(args, start, end, identity, config):
                         cache = scratch / day_label
                         staged = {}
                         try:
-                            for lo, hi in chunks(first, stop):
-                                if selected is not None and (lo, hi) not in selected:
-                                    continue
-                                label = lo.strftime('%Y%m%d_%H%M%S') + '_' + hi.strftime('%Y%m%d_%H%M%S')
-                                state_path = month_dir / 'state' / day_label / (label + '.json')
-                                output = month_dir / 'data' / day_label / (label + '.npz')
-                                check_sources(config)
-                                progress.current(lo, 'acquire/verify')
-                                particles, mag, proof, failures, primary = acquisition.interval(
-                                    day, lo, hi, args.mgf_cadence)
-                                inputs = [fingerprint(p) for p in particles + mag]
-                                signature = hashlib.sha256(json.dumps(proof, sort_keys=True).encode()).hexdigest()
-                                common = {'start_utc': lo.isoformat(), 'end_utc_exclusive': hi.isoformat(),
-                                          'profile_hash': identity, 'input_signature': signature, 'inputs': inputs,
-                                          'input_verification': 'verified' if not failures and primary == 'verified'
-                                                                else 'incomplete',
-                                          'acquisition_evidence': proof}
-                                if failures:
-                                    status = failures[0]['status']
-                                    atomic_json(state_path, {**common, 'status': status, 'failed_units': failures})
-                                    record(label, status)
-                                    if any(x.get('retryable', True) for x in failures):
-                                        pending.add((lo, hi))
-                                    progress.finish(counts)
-                                    continue
-                                if primary != 'verified':
-                                    atomic_json(state_path, {**common, 'status': 'remote_absent',
-                                                            'reason': 'Primary daily granule absent in verified remote index'})
-                                    record(label, 'remote_absent')
-                                    progress.finish(counts)
-                                    continue
-                                if resume_valid(state_path, output, identity, signature):
-                                    record(label, 'skipped_verified')
-                                    progress.finish(counts)
-                                    continue
-                                progress.current(lo, 'wait/stage')
-                                wait_resources(args, scratch)
-                                check_sources(config)
-                                try:
-                                    for source in particles + mag:
-                                        if (str(source) not in staged
-                                                or staged[str(source)]['source'] != fingerprint(source)):
-                                            date_match = re.search(r'_(\d{8})(?:\d{2})?_v', source.name)
-                                            source_cache = scratch / 'cdf' / date_match.group(1)
-                                            staged[str(source)] = stage_cdf(source, source_cache, args)
-                                    if [staged[str(p)]['source'] for p in particles + mag] != inputs:
-                                        raise ValueError('Input changed while staging; restart to use a consistent snapshot')
-                                except (OSError, ValueError, EOFError, MemoryError) as exc:
-                                    atomic_json(state_path, {**common, 'status': 'failed_stage',
-                                                            'reason': str(exc)})
-                                    record(label, 'failed_stage')
-                                    progress.finish(counts)
-                                    print(f'{lo.isoformat()} failed_stage: {exc}', flush=True)
-                                    # Do not attempt the same broken day-CDF hundreds of times.
-                                    break
-                                request = {**common, 'config': config, 'output': str(output),
-                                           'lepi': [staged[str(p)] for p in particles],
-                                           'mgf': [staged[str(p)] for p in mag]}
-                                request_path = cache / 'request.json'
-                                result_path = cache / 'result.json'
-                                atomic_json(request_path, request)
-                                result_path.unlink(missing_ok=True)
-                                log = month_dir / 'logs' / day_label / (label + '.log')
-                                log.parent.mkdir(parents=True, exist_ok=True)
-                                atomic_json(state_path, {**common, 'status': 'running'})
-                                check_sources(config)
-                                if output.exists():
-                                    # Preserve an incompatible/corrupt old artifact for audit.
-                                    obsolete = month_dir / 'superseded' / day_label
-                                    obsolete.mkdir(parents=True, exist_ok=True)
-                                    old_name = output.stem + '_' + sha_file(output)[:12] + '.npz'
-                                    os.replace(output, obsolete / old_name)
-                                cmd = [sys.executable, str(BASE / 'worker.py'),
-                                       '--request', str(request_path), '--result', str(result_path)]
-                                # Child uses its own fresh process group so timeout/interrupt can clean it up.
-                                progress.current(lo, 'moments')
-                                proc = None
-                                try:
-                                    with log.open('w') as stream:
-                                        proc = subprocess.Popen(cmd, stdout=stream, stderr=subprocess.STDOUT,
-                                                                start_new_session=True)
-                                        try:
-                                            code = proc.wait(timeout=args.worker_timeout)
-                                        except BaseException:
-                                            os.killpg(proc.pid, 15)
-                                            try:
-                                                proc.wait(timeout=5)
-                                            except subprocess.TimeoutExpired:
-                                                os.killpg(proc.pid, 9)
-                                                proc.wait()
-                                            raise
-                                    if code != 0 or not result_path.exists():
-                                        state = {**common, 'status': 'failed', 'returncode': code, 'log': str(log)}
-                                    else:
-                                        state = {**common, **json.loads(result_path.read_text()), 'log': str(log)}
-                                except subprocess.TimeoutExpired:
-                                    state = {**common, 'status': 'timeout', 'log': str(log)}
-                                except KeyboardInterrupt:
-                                    atomic_json(state_path, {**common, 'status': 'interrupted', 'log': str(log)})
-                                    raise
-                                atomic_json(state_path, state)
-                                record(label, state['status'])
-                                progress.finish(counts)
-                                print(f'{lo.isoformat()} {state["status"]}', flush=True)
-                                time.sleep(args.pause_seconds)
+                            with ComputePool(args, finished) as compute:
+                                for lo, hi in chunks(first, stop):
+                                    if selected is not None and (lo, hi) not in selected:
+                                        continue
+                                    label = lo.strftime('%Y%m%d_%H%M%S') + '_' + hi.strftime('%Y%m%d_%H%M%S')
+                                    state_path = month_dir / 'state' / day_label / (label + '.json')
+                                    output = month_dir / 'data' / day_label / (label + '.npz')
+                                    check_sources(config)
+                                    progress.current(lo, 'acquire/verify')
+                                    particles, mag, proof, failures, primary = acquisition.interval(
+                                        day, lo, hi, args.mgf_cadence)
+                                    inputs = [fingerprint(p) for p in particles + mag]
+                                    signature = hashlib.sha256(json.dumps(proof, sort_keys=True).encode()).hexdigest()
+                                    common = {'start_utc': lo.isoformat(), 'end_utc_exclusive': hi.isoformat(),
+                                              'profile_hash': identity, 'input_signature': signature, 'inputs': inputs,
+                                              'input_verification': 'verified' if not failures and primary == 'verified'
+                                                                    else 'incomplete',
+                                              'acquisition_evidence': proof}
+                                    if failures:
+                                        status = failures[0]['status']
+                                        reason = acquisition_failure_class(failures)
+                                        atomic_json(state_path, {**common, 'status': status, 'failure_class': reason,
+                                                                'reason': failures[0].get('reason', ''),
+                                                                'retryable': any(x.get('retryable', True) for x in failures),
+                                                                'failed_units': failures})
+                                        record(label, status)
+                                        if any(x.get('retryable', True) for x in failures):
+                                            pending.add((lo, hi))
+                                        progress.finish(counts)
+                                        continue
+                                    if primary != 'verified':
+                                        atomic_json(state_path, {**common, 'status': 'excluded',
+                                                                'failure_class': 'required_input_missing_remote',
+                                                                'classification_version': 1, 'retryable': False,
+                                                                'exclusion_basis': 'verified_remote_index',
+                                                                'reason': 'Primary daily granule absent in verified remote index'})
+                                        record(label, 'excluded')
+                                        progress.finish(counts)
+                                        continue
+                                    try:
+                                        excluded_before = json.loads(state_path.read_text()).get('status') == 'excluded'
+                                    except (OSError, ValueError):
+                                        excluded_before = False
+                                    if ((not (excluded_before and getattr(args, 'recheck_excluded', False))
+                                         and resume_valid(state_path, output, identity, signature))
+                                            or reuse_first_result(reuse_candidates, root, state_path, output, identity, signature, common, config)):
+                                        record(label, ('skipped_excluded' if excluded_before else
+                                                       'skipped_partial' if json.loads(state_path.read_text())['status'] == 'partial'
+                                                       else 'skipped_verified'))
+                                        progress.finish(counts)
+                                        continue
+                                    compute.wait_for_slot()
+                                    progress.current(lo, 'wait/stage')
+                                    wait_resources(args, scratch)
+                                    check_sources(config)
+                                    try:
+                                        for source in particles + mag:
+                                            if (str(source) not in staged
+                                                    or staged[str(source)]['source'] != fingerprint(source)):
+                                                date_match = re.search(r'_(\d{8})(?:\d{2})?_v', source.name)
+                                                source_cache = scratch / 'cdf' / date_match.group(1)
+                                                staged[str(source)] = stage_cdf(source, source_cache, args)
+                                        for source in particles + mag:
+                                            item = staged[str(source)]
+                                            key = hashlib.sha256(json.dumps(item['source'], sort_keys=True).encode()).hexdigest()
+                                            item['time_cache_path'] = str(scratch / 'cdf' / date_key(source) / (key + '.epochs.npz'))
+                                        if [staged[str(p)]['source'] for p in particles + mag] != inputs:
+                                            raise ValueError('Input changed while staging; restart to use a consistent snapshot')
+                                    except (OSError, ValueError, EOFError, MemoryError) as exc:
+                                        atomic_json(state_path, {**common, 'status': 'failed_stage',
+                                                                'failure_class': 'input_stage_error', 'retryable': True,
+                                                                'reason': str(exc)})
+                                        record(label, 'failed_stage')
+                                        progress.finish(counts)
+                                        print(f'{lo.isoformat()} failed_stage: {exc}', flush=True)
+                                        # Do not attempt the same broken day-CDF hundreds of times.
+                                        break
+                                    request = {**common, 'config': config, 'output': str(output),
+                                               'lepi': [staged[str(p)] for p in particles],
+                                               'mgf': [staged[str(p)] for p in mag]}
+                                    if output.exists():
+                                        # Preserve an incompatible/corrupt old artifact for audit.
+                                        obsolete = month_dir / 'superseded' / day_label
+                                        obsolete.mkdir(parents=True, exist_ok=True)
+                                        old_name = output.stem + '_' + sha_file(output)[:12] + '.npz'
+                                        os.replace(output, obsolete / old_name)
+                                    log = month_dir / 'logs' / day_label / (label + '.log')
+                                    compute.submit(label, request, common, state_path, cache / label, log)
                         finally:
                             # Only this profile's explicitly owned, day-specific scratch is removed.
                             if cache.exists():
@@ -506,7 +682,7 @@ def run(args, start, end, identity, config):
                 if (scratch / 'cdf').exists():
                     shutil.rmtree(scratch / 'cdf')
     print(json.dumps(report), flush=True)
-    incomplete = sum(v for k, v in counts.items() if k not in {'complete', 'no_data', 'remote_absent', 'skipped_verified'})
+    incomplete = sum(v for k, v in counts.items() if k not in {'complete', 'partial', 'skipped_partial', 'excluded', 'skipped_excluded', 'skipped_verified'})
     return 2 if incomplete else 0
 
 
@@ -519,6 +695,8 @@ def main():
     parser.add_argument('--end')
     parser.add_argument('--input-root', type=Path, default=DEFAULT_INPUT)
     parser.add_argument('--output-root', type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument('--reuse-results-from', type=Path, action='append',
+                        help='Repeat to search compatible profiles in order; only verified complete results are reused')
     parser.add_argument('--scratch-root', type=Path, default=Path('/tmp/lepi_moments_work'))
     parser.add_argument('--mgf-cadence', choices=['64hz', '8sec'], default='64hz')
     parser.add_argument('--max-mgf-gap-seconds', type=float,
@@ -526,11 +704,17 @@ def main():
     parser.add_argument('--min-free-memory-gib', type=float, default=8.)
     parser.add_argument('--scratch-reserve-gib', type=float, default=4.)
     parser.add_argument('--pause-seconds', type=float, default=2.)
+    parser.add_argument('--compute-workers', type=int, default=1,
+                        help='Concurrent 5-minute compute processes, one distinct CPU each (default: 1)')
+    parser.add_argument('--recheck-excluded', action='store_true',
+                        help='Reevaluate excluded chunks in the current profile')
     parser.add_argument('--worker-timeout', type=float, default=180.)
     parser.add_argument('--offline', action='store_true', help='Use previously verified shared cache only')
     parser.add_argument('--refresh-downloads', action='store_true', help='Recheck remote versions and inputs')
     parser.add_argument('--remote-root', default='https://ergsc.isee.nagoya-u.ac.jp/data/ergsc/satellite/erg/')
     parser.add_argument('--download-attempts', type=int, default=3)
+    parser.add_argument('--download-workers', type=int, default=8,
+                        help='Parallel prefetch acquisition processes (default: 8; validation stays serial)')
     parser.add_argument('--lepi-boundary-tolerance-seconds', type=float, default=64.,
                         help='Daily filename guard for native integration-start epochs; does not shift timestamps')
     parser.add_argument('--max-network-failures', type=int, default=0,
@@ -554,7 +738,8 @@ def main():
     if not all(math.isfinite(x) for x in limits) or min(args.max_mgf_gap_seconds, args.worker_timeout) <= 0 or min(
             args.min_free_memory_gib, args.scratch_reserve_gib, args.pause_seconds) < 0:
         parser.error('Invalid resource or interpolation limit')
-    if (args.download_attempts < 1 or args.max_network_failures < 0 or args.retry_passes < 0 or min(args.http_timeout, args.download_timeout, args.validation_timeout) <= 0
+    if (args.compute_workers < 1 or args.compute_workers > len(os.sched_getaffinity(0))
+            or args.download_workers < 1 or args.download_attempts < 1 or args.max_network_failures < 0 or args.retry_passes < 0 or min(args.http_timeout, args.download_timeout, args.validation_timeout) <= 0
             or min(args.retry_delay, args.lepi_boundary_tolerance_seconds, args.retry_pass_delay) < 0 or (args.offline and args.refresh_downloads)):
         parser.error('Invalid acquisition options')
     try:
@@ -576,6 +761,7 @@ def main():
         raise KeyboardInterrupt(f'Stop signal {signum}')
     signal.signal(signal.SIGTERM, stop_requested)
     signal.signal(signal.SIGINT, stop_requested)
+    args.compute_cpu_ids = sorted(os.sched_getaffinity(0))[-args.compute_workers:]
     os.nice(19)
     os.sched_setaffinity(0, {max(os.sched_getaffinity(0))})
     # Idle I/O priority inherited by the worker, when ionice is available.

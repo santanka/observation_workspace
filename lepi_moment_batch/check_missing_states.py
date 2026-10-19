@@ -53,7 +53,7 @@ def main():
             base = [sys.executable, str(BASE/'batch.py'), '--input-root', str(root/'raw'),
                     '--output-root', str(root/'output'), '--scratch-root', str(root/'scratch'),
                     '--remote-root', f'http://127.0.0.1:{server.server_port}/erg/',
-                    '--pause-seconds', '0', '--retry-delay', '0', '--http-timeout', '2',
+                    '--download-workers', '1', '--pause-seconds', '0', '--retry-delay', '0', '--http-timeout', '2',
                     '--download-attempts', '2', '--retry-pass-delay', '0', '--progress', 'on']
             def run(start, end, expected, code, extra=()):
                 result = subprocess.run(base+['--start', start, '--end', end]+list(extra),
@@ -63,12 +63,25 @@ def main():
                 report = json.loads(result.stdout.splitlines()[-1])
                 assert report['counts'] == {expected: 1}, report
                 return report
-            run('2022-09-29T05:05', '2022-09-29T05:10', 'missing_mgf', 2)
-            report = run('2022-09-29T05:10', '2022-09-29T05:15', 'no_data', 0)
-            run('2022-09-29T05:10', '2022-09-29T05:15', 'skipped_verified', 0)
-            run('2022-09-28T05:05', '2022-09-28T05:10', 'remote_absent', 0)
+            report = run('2022-09-29T05:05', '2022-09-29T05:10', 'excluded', 0)
+            first_state = next((Path(report['output_root'])/'2022/09/state/20220929').glob('*.json'))
+            assert json.loads(first_state.read_text())['failure_class'] == 'required_input_missing_remote'
+            report = run('2022-09-29T05:10', '2022-09-29T05:15', 'excluded', 0)
+            run('2022-09-29T05:10', '2022-09-29T05:15', 'skipped_excluded', 0)
+            run('2022-09-29T05:10', '2022-09-29T05:15', 'excluded', 0, ['--recheck-excluded'])
+            empty_state = Path(report['output_root'])/'2022/09/state/20220929/20220929_051000_20220929_051500.json'
+            assert json.loads(empty_state.read_text())['failure_class'] == 'empty_lepi_data'
+            parallel = subprocess.run(base + ['--start', '2022-09-29T05:05', '--end', '2022-09-29T05:15',
+                                              '--compute-workers', '2', '--recheck-excluded'],
+                                      capture_output=True, text=True, timeout=45)
+            assert parallel.returncode == 0, parallel.stderr + parallel.stdout
+            parallel_report = json.loads(parallel.stdout.splitlines()[-1])
+            assert parallel_report['counts'] == {'excluded': 2}, parallel_report
+            states = [json.loads(p.read_text()) for p in (Path(report['output_root'])/'2022/09/state/20220929').glob('*.json')]
+            assert len({s['cpu_affinity'][0] for s in states}) == 2, states
+            run('2022-09-28T05:05', '2022-09-28T05:10', 'excluded', 0)
             run('2022-09-29T05:05', '2022-09-29T05:10', 'timeout', 2,
-                ['--worker-timeout', '0.01'])
+                ['--worker-timeout', '0.01', '--recheck-excluded'])
             assert not list((root/'scratch').glob('*/cdf/**/*'))
             verified = list((root/'raw').rglob('*.cdf'))
             assert len(verified) == 1 and verified[0].read_bytes() == body
@@ -83,11 +96,11 @@ def main():
             fixture(path, product='lepi')
             body = path.read_bytes()
             fail_once = True
-            recovered = run('2022-09-29T05:10', '2022-09-29T05:15', 'no_data', 0,
+            recovered = run('2022-09-29T05:10', '2022-09-29T05:15', 'excluded', 0,
                             ['--refresh-downloads', '--download-attempts', '1'])
             assert not fail_once
             latest = json.loads((Path(recovered['output_root'])/'last_run.json').read_text())
-            assert latest['status'] == 'finished' and latest['counts'] == {'no_data': 1}, latest
+            assert latest['status'] == 'finished' and latest['counts'] == {'excluded': 1}, latest
             # A sustained outage stops the whole request, records current counts, and leaves no NPZ.
             fail_all = True
             stopped = subprocess.run(base + ['--start', '2021-09-29T05:05', '--end', '2021-10-02T05:05',
@@ -103,8 +116,8 @@ def main():
         finally:
             server.shutdown()
             server.server_close()
-    print('HTTP/CDF integration passed: download, missing MGF, verified no_data, resume, '
-          'remote absence, timeout, cleanup, invalid refreshed input blocks no_data, sustained outage stops run')
+    print('HTTP/CDF integration passed: exclusion reasons, exclusion recheck/resume, two-CPU batch, '
+          'remote absence, timeout, cleanup, invalid input remains failed, sustained outage stops run')
 
 
 if __name__ == '__main__':

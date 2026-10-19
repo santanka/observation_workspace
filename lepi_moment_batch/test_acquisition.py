@@ -22,7 +22,7 @@ DATE = dt.datetime(2022, 9, 29, 5, tzinfo=dt.timezone.utc)
 NAME = 'erg_mgf_l2_64hz_dsi_2022092905_v04.06.cdf'
 
 
-def fixture(path, product='64hz', omit=None, seconds=(4, 12), conflict=False, date=(2022, 9, 29, 5, 5)):
+def fixture(path, product='64hz', omit=None, seconds=(4, 12), conflict=False, date=(2022, 9, 29, 5, 5), energy=None):
     with cdfwrite.CDF(str(path), delete=True) as c:
         epoch = cdfepoch.compute_tt2000([[*date, s, 0, 0, 0] for s in seconds])
         def put(name, dims, data, typ=21, record=True):
@@ -45,7 +45,7 @@ def fixture(path, product='64hz', omit=None, seconds=(4, 12), conflict=False, da
                 for suffix in ('', '_COUNT_RAW'):
                     put(species + suffix, [32, 8, 16], np.ones((len(seconds), 32, 8, 16), dtype=np.float32))
                 put(species + '_Quality', [32, 15, 16], np.zeros((len(seconds), 32, 15, 16), dtype=np.int8), 41)
-                put(species + '_Energy', [32], np.arange(1, 33, dtype=np.float32), record=False)
+                put(species + '_Energy', [32], np.arange(1, 33, dtype=np.float32) if energy is None else np.asarray(energy,dtype=np.float32), record=False)
 
 
 class Response(io.BytesIO):

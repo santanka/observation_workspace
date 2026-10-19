@@ -139,7 +139,7 @@ def inventory(root, start, end):
         for path in (root/cursor.strftime('%Y/%m')/'state').glob('*/*.json'):
             state = json.loads(path.read_text())
             lo, hi = parse(state['start_utc']), parse(state['end_utc_exclusive'])
-            if start <= lo and hi <= end and state['status'] == 'complete':
+            if start <= lo and hi <= end and state['status'] in {'complete', 'partial'}:
                 found.append((lo, path))
         cursor = (cursor.replace(day=28)+dt.timedelta(days=4)).replace(day=1)
     return sorted(found)
@@ -253,8 +253,8 @@ class Support:
 
 def convert_chunk(state_path, source_root, root, identity, config, support):
     state = json.loads(state_path.read_text())
-    if state['status'] != 'complete' or state.get('input_verification') != 'verified':
-        raise ValueError('Source moment state is not verified complete')
+    if state['status'] not in {'complete', 'partial'} or state.get('input_verification') != 'verified':
+        raise ValueError('Source moment state is not verified complete/partial')
     if state['profile_hash'] != config['source_profile_hash']:
         raise ValueError('Source state profile mismatch')
     relative = state_path.relative_to(source_root)
@@ -283,9 +283,19 @@ def convert_chunk(state_path, source_root, root, identity, config, support):
             raise ValueError('Source NPZ does not establish native DSI frame')
         if not len(times) or epoch.shape != times.shape or not np.isfinite(times).all() or (np.diff(times) <= 0).any():
             raise ValueError('Source moment timestamps invalid')
+        if state['status'] == 'partial' and ('moment_valid' not in source_data or 'moment_invalid_reason' not in source_data):
+            raise ValueError('Partial source lacks per-record moment validity')
+        moment_valid = source_data['moment_valid'].copy() if 'moment_valid' in source_data else np.ones(len(times), dtype=bool)
+        moment_reason = source_data['moment_invalid_reason'].copy() if 'moment_invalid_reason' in source_data else np.zeros(len(times), dtype=np.uint8)
+        if (moment_valid.shape != times.shape or moment_valid.dtype.kind != 'b'
+                or moment_reason.shape != times.shape or not np.array_equal(moment_valid, moment_reason == 0)
+                or not moment_valid.any() or (state['status'] == 'complete' and not moment_valid.all())
+                or (state['status'] == 'partial' and moment_valid.all())):
+            raise ValueError('Source moment validity is inconsistent with state')
         matrices, diagnostics, brackets = rotation(times, support.at, support.angles,
             support.ot, support.positions, config['attitude_gap_seconds'], config['orbit_gap_seconds'])
-        arrays = {'time_unix': times, 'epoch_tt2000': epoch, 'rotation_dsi_to_gsm': matrices, **diagnostics}
+        arrays = {'time_unix': times, 'epoch_tt2000': epoch, 'rotation_dsi_to_gsm': matrices,
+                  'moment_valid': moment_valid, 'moment_invalid_reason': moment_reason, **diagnostics}
         for side in ('left', 'right'):
             q = support.quality[brackets[side]]
             arrays['attitude_'+side+'_flag_vi'] = q[:, 0].copy()
@@ -299,20 +309,27 @@ def convert_chunk(state_path, source_root, root, identity, config, support):
             arrays['attitude_'+side+'_adsg_interp_dt_seconds'][unavailable] = np.nan
             arrays['attitude_'+side+'_adsgt_iptime_seconds'][unavailable] = np.nan
         for var in SPECIES:
-            observed, valid = apply(matrices, source_data[var+'__velocity'])
+            velocity = source_data[var+'__velocity'].copy()
+            velocity[~moment_valid] = np.nan
+            observed, valid = apply(matrices, velocity)
             arrays[var+'__velocity_gsm_observed'] = observed
             arrays[var+'__velocity_valid'] = valid
     manifest = {**common, 'config': config, 'quality_bits': FLAGS,
+                'source_moment_status': state['status'],
+                'moment_selection': original.get('metadata', {}).get('moment_selection', {}),
                 'rotation_convention': 'v_gsm[i] = R[i,j] v_dsi[j]; matrices stored per record',
                 'attitude_quality': 'Original FLAG_VI, Sensor, ADSG_interp_dt, ADSGt-iptime retained at brackets; no flag/age filtering',
                 'support_extrapolation': False, 'orbit_input_units': support.orbit_input_units, 'coordinate_reference': 'https://ergsc.isee.nagoya-u.ac.jp/assets/howto/ERG_Coordinate_System_202004.pdf',
                 'array_sha256': {key: hashlib.sha256(np.ascontiguousarray(value).tobytes()).hexdigest() for key, value in arrays.items()}}
     check_code(config)
     save(output, arrays, manifest)
-    status = 'complete' if diagnostics['rotation_valid'].all() else 'partial'
+    rotation_incomplete = bool((moment_valid & ~diagnostics['rotation_valid']).any())
+    status = 'complete' if moment_valid.all() and diagnostics['rotation_valid'].all() else 'partial'
     atomic_json(target_state, {**common, 'status': status, 'output': str(output),
                               'output_sha256': sha(output), 'records': len(times),
-                              'valid_rotation_records': int(diagnostics['rotation_valid'].sum())})
+                              'valid_rotation_records': int(diagnostics['rotation_valid'].sum()),
+                              'valid_source_moment_records': int(moment_valid.sum()),
+                              'source_moment_status': state['status'], 'rotation_incomplete': rotation_incomplete})
     return status
 
 
@@ -347,7 +364,7 @@ def main():
         parser.error(str(exc))
     root = args.output_root/('gsm_observed_'+identity[:12])
     if args.dry_run:
-        print(json.dumps({'source_complete_chunks':len(items),'output_root':str(root),
+        print(json.dumps({'source_usable_chunks':len(items),'output_root':str(root),
                           'source_profile_hash':source_profile['profile_hash']},indent=2)); return 0
     def interrupted(signum, frame):
         raise KeyboardInterrupt(f'Signal {signum}')
@@ -358,7 +375,7 @@ def main():
     root.mkdir(parents=True,exist_ok=True)
     counts=Counter(); statuses={}; failures=[]
     report={'profile_hash':identity,'source_start_utc':start.isoformat(),'source_end_utc_exclusive':end.isoformat(),
-            'inventory_scope':'Verified complete source chunks present at startup; source batch may still be running'}
+            'inventory_scope':'Verified complete/partial source chunks present at startup; source batch may still be running'}
     try:
         with (root/'.run.lock').open('a+') as lock:
             fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
@@ -384,7 +401,9 @@ def main():
                             except Exception as exc:
                                 failed_days[day]=str(exc); raise
                             status=convert_chunk(path,args.moments_root,root,identity,config,support)
-                            if status in ('partial', 'skipped_partial'): failures.append((lo,path))
+                            if status in ('partial', 'skipped_partial'):
+                                target = json.loads((root/relative).read_text())
+                                if target.get('rotation_incomplete', True): failures.append((lo,path))
                         except Exception as exc:
                             status='failed'
                             atomic_json(root/relative,{'status':status,'profile_hash':identity,'reason':str(exc),
@@ -407,7 +426,7 @@ def main():
         atomic_json(root/'last_run.json',{**report,'status':'interrupted','counts':dict(counts)})
         return 130
     print(json.dumps({'output_root':str(root),'counts':dict(counts)}))
-    return 2 if counts['failed'] or counts['partial'] or counts['skipped_partial'] else 0
+    return 2 if failures else 0
 
 
 if __name__=='__main__':
