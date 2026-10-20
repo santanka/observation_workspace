@@ -2,8 +2,10 @@
 !*/
 !*.*
 /.venv_pyspedas
+/venv_tutorial
 /geopack-vectorize
 *.cdf
+*.csv
 *.zip
 *.html
 *.nc
@@ -17,3 +19,4 @@
 *.ti
 *.tsc
 */__pycache__
+/tutorial/Mio_tutorial_20261020/*
