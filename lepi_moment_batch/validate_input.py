@@ -12,6 +12,7 @@ resource.setrlimit(resource.RLIMIT_AS, (3 * 1024**3, 3 * 1024**3))
 resource.setrlimit(resource.RLIMIT_CPU, (120, 125))
 import numpy as np
 from cdflib import CDF, cdfepoch
+from mgf_policy import POLICY, record_selection
 
 
 class DataPolicyError(ValueError):
@@ -41,14 +42,14 @@ def validate(path, product, date, boundary_tolerance_seconds=None):
     epoch = np.asarray(cdf.varget(epoch_name))
     if cdf.varinq(epoch_name).Data_Type != 33 or epoch.ndim != 1 or not len(epoch):
         raise ValueError('Expected nonempty scalar TT2000 epochs')
-    if np.any(np.diff(epoch) < 0):
+    if product == 'lepi' and np.any(np.diff(epoch) < 0):
         raise DataPolicyError('Epoch reversal requires inspection; not a transfer-corruption test',
                               reverse_pairs=int((np.diff(epoch) < 0).sum()))
     duplicates = np.flatnonzero(np.diff(epoch) == 0)
     dates = cdfepoch.to_datetime(epoch)
     nominal = np.datetime64(date, 'ns')
     duration = np.timedelta64(1, 'h' if product == '64hz' else 'D')
-    if (np.isnat(dates).any() or dates[0] < nominal - margin
+    if product == 'lepi' and (np.isnat(dates).any() or dates[0] < nominal - margin
             or dates[-1] > nominal + duration + margin):
         outside = np.isnat(dates) | (dates < nominal - margin) | (dates > nominal + duration + margin)
         raise DataPolicyError(f'Epochs outside nominal granule ({boundary_tolerance_seconds:g}-second boundary tolerance)',
@@ -56,6 +57,17 @@ def validate(path, product, date, boundary_tolerance_seconds=None):
                               outside_records=int(outside.sum()),
                               outside_examples=[{'record': int(i), 'utc': str(dates[i])}
                                                 for i in np.flatnonzero(outside)[:10]])
+    recovery = {}
+    if product != 'lepi':
+        try:
+            keep, outside, _ = record_selection(epoch, dates, nominal, product, boundary_tolerance_seconds)
+        except ValueError as exc:
+            raise DataPolicyError(str(exc)) from exc
+        recovery = {'policy': POLICY, 'outside_record_indices': np.flatnonzero(outside).tolist(),
+                    'retained_records': len(keep), 'conflicting_epoch_tt2000': [],
+                    'conflicting_record_pairs': []}
+        duplicates = keep[np.flatnonzero(np.diff(epoch[keep]) == 0)]
+    conflict_epochs = set()
     n = len(epoch)
     required = {'epoch_sp': []} if product == 'lepi' else {'mag_' + product + '_dsi': [3],
                                                           'quality_' + product: None}
@@ -87,16 +99,24 @@ def validate(path, product, date, boundary_tolerance_seconds=None):
                 raise ValueError('Incomplete required records: ' + name)
         # A repeated timestamp is safe to collapse only when every required payload is identical.
         for index in duplicates:
-            pair = np.asarray(cdf.varget(name, startrec=int(index), endrec=int(index + 1)))
+            second = int(index + 1) if product == 'lepi' else int(keep[np.searchsorted(keep, index) + 1])
+            pair = np.asarray(cdf.varget(name, startrec=int(index), endrec=second))[[0, -1]]
             if not np.array_equal(pair[0], pair[1], equal_nan=True):
+                if product != 'lepi':
+                    conflict_epochs.add(int(epoch[index]))
+                    recovery['conflicting_record_pairs'].append({'variable': name, 'records': [int(index), second]})
+                    continue
                 raise DataPolicyError('Conflicting records at a duplicate epoch: ' + name,
                                       duplicate_records=[int(index), int(index + 1)],
                                       duplicate_epoch_utc=str(dates[index]))
         checks[name] = {'records': n, 'dimensions': q.Dim_Sizes}
+    if recovery:
+        recovery['conflicting_epoch_tt2000'] = sorted(conflict_epochs)
     return {'status': 'verified', 'product': product, 'records': n,
             'first_epoch_utc': str(dates[0]), 'last_epoch_utc': str(dates[-1]),
-            'identical_duplicate_pairs': int(len(duplicates)),
-            'record_policy': 'nondecreasing epochs; identical duplicates only; retain last original record',
+            'identical_duplicate_pairs': int(sum(int(epoch[i]) not in conflict_epochs for i in duplicates)),
+            'magnetic_record_quarantine': recovery,
+            'record_policy': POLICY if recovery else 'nondecreasing epochs; identical duplicates only; retain last original record',
             'boundary_tolerance_seconds': boundary_tolerance_seconds,
             'logical_eof_bytes': logical_eof, 'required_variables': checks,
             'full_required_payload_read': True,

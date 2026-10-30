@@ -25,6 +25,7 @@ for key in ('OPENBLAS_NUM_THREADS', 'OMP_NUM_THREADS', 'MKL_NUM_THREADS',
     os.environ[key] = '1'
 import numpy as np
 from cdflib import CDF, cdfepoch
+from mgf_policy import POLICY, nominal_time, record_selection, conflicting_pairs
 from batch import atomic_json, sha_file, fingerprint, MOMENT_INVALID_BITS, MOMENT_TIME_POLICY
 
 pilot = psp = None
@@ -59,8 +60,8 @@ def unique_order(epoch):
     return keep[np.argsort(epoch[keep])]
 
 
-def times(cdf, name, source=None):
-    """Validated native epochs may contain identical duplicates; selection keeps original indices."""
+def times(cdf, name, source=None, allow_quarantine=False):
+    """Read native epochs; MGF quarantine checks retained records separately."""
     cache = Path(source['time_cache_path']) if source and source.get('time_cache_path') else None
     stamp = fingerprint(source['expanded_path']) if cache else None
     if cache and cache.exists():
@@ -73,7 +74,7 @@ def times(cdf, name, source=None):
             pass
     raw = np.asarray(cdf.varget(name))
     dates = np.asarray(cdfepoch.to_datetime(raw)).astype('datetime64[ns]')
-    if np.isnat(dates).any() or np.any(np.diff(raw) < 0):
+    if not allow_quarantine and (np.isnat(dates).any() or np.any(np.diff(raw) < 0)):
         raise ValueError('Invalid or reversed epochs in verified input')
     if cache:
         if fingerprint(source['expanded_path']) != stamp:
@@ -106,82 +107,123 @@ def particle_records(staged, lo, hi):
     return records
 
 
-def magnetic(staged, lo, hi, targets, cadence, max_gap):
-    epoch_name = 'epoch_64hz' if cadence == '64hz' else 'epoch_8sec'
-    field_name = 'mag_64hz_dsi' if cadence == '64hz' else 'mag_8sec_dsi'
-    quality_name = 'quality_64hz' if cadence == '64hz' else 'quality_8sec'
+def magnetic(staged, lo, hi, targets, cadence, max_gap, target_epochs=None):
+    epoch_name = 'epoch_' + cadence
+    field_name = 'mag_' + cadence + '_dsi'
+    quality_name = 'quality_' + cadence
     parts, attrs = [], []
     for source_index, source in enumerate(staged):
         cdf = CDF(source['expanded_path'])
-        epoch, dates, unix = times(cdf, epoch_name, source)
-        first = max(0, int(np.searchsorted(dates, lo)) - 1)
-        last = min(len(dates) - 1, int(np.searchsorted(dates, hi)))
-        if first > last:
+        epoch, dates, unix = times(cdf, epoch_name, source, allow_quarantine=True)
+        indices, outside, segments = record_selection(epoch, dates, nominal_time(source, cadence), cadence)
+        quarantine = {'policy': POLICY, 'outside_record_indices': np.flatnonzero(outside).tolist()}
+        if not len(indices):
+            attrs.append({'source_index': source_index, 'quarantine': quarantine})
             continue
-        b, ba = record_data(cdf, field_name, first, last)
+        selected_dates = dates[indices]
+        first = max(0, int(np.searchsorted(selected_dates, lo)) - 1)
+        last = min(len(indices) - 1, int(np.searchsorted(selected_dates, hi)))
+        # Include the entire duplicate groups at the two selection boundaries.
+        first = int(np.searchsorted(epoch[indices], epoch[indices[first]], side='left'))
+        last = int(np.searchsorted(epoch[indices], epoch[indices[last]], side='right')) - 1
+        selected = indices[first:last+1]
+        if not len(selected):
+            continue
+        begin, end = int(selected[0]), int(selected[-1])
+        b, ba = record_data(cdf, field_name, begin, end)
+        raw_b = np.asarray(cdf.varget(field_name, startrec=begin, endrec=end))
+        b = b.astype(float)
         b[(b < -1e6) | (b > 1e6)] = np.nan
-        variables = cdf.cdf_info().zVariables
-        if quality_name in variables:
-            q, qa = record_data(cdf, quality_name, first, last, floating_fill=False)
-        else:
+        if quality_name not in cdf.cdf_info().zVariables:
             raise MissingMagneticData(f'{quality_name} unavailable in {source["source"]["path"]}', 'invalid_mgf_schema')
-        parts.append({'epoch': epoch[first:last+1], 'time': unix[first:last+1], 'b': b,
-                      'q': q, 'source_index': np.full(last-first+1, source_index, dtype=np.int16)})
-        attrs.append({'source_index': source_index, 'magnetic': ba, 'quality': qa})
+        q, qa = record_data(cdf, quality_name, begin, end, floating_fill=False)
+        local = selected - begin
+        # Detect conflicts before FILLVAL/range normalization; include quality payload.
+        conflicts = set()
+        for payload in (raw_b[local], q[local]):
+            conflicts.update(int(epoch[selected[i]]) for i in conflicting_pairs(epoch[selected], payload))
+        quarantine['conflicting_epoch_tt2000'] = sorted(conflicts)
+        parts.append({'epoch': epoch[selected], 'time': unix[selected], 'b': b[local],
+                      'q': q[local], 'raw_b': raw_b[local], 'source_index': np.full(len(selected), source_index, dtype=np.int16),
+                      'record_index': selected, 'segment': segments[selected],
+                      'conflict': np.isin(epoch[selected], list(conflicts))})
+        attrs.append({'source_index': source_index, 'magnetic': ba, 'quality': qa, 'quarantine': quarantine})
     if not parts:
-        raise MissingMagneticData('No local magnetic field samples', 'empty_mgf_data')
+        raise MissingMagneticData('No magnetic samples remain after record quarantine', 'empty_mgf_data',
+                                  records_per_species=len(targets), computed_records_per_species=0,
+                                  invalid_records_per_species=len(targets), valid_moment_fraction=0.,
+                                  moment_invalid_reason_counts=reason_counts(np.full(len(targets), MOMENT_INVALID_BITS['outside_mgf_support'], dtype=np.uint8)),
+                                  magnetic_input=attrs)
     epoch = np.concatenate([p['epoch'] for p in parts])
+    raw = {key: np.concatenate([p[key] for p in parts]) for key in parts[0]}
+    # Across-file overlap must not silently select one of two conflicting values.
+    sorted_indices = np.argsort(epoch, kind='stable')
+    conflict_epochs = set(int(e) for e in epoch[raw['conflict']])
+    for payload in (raw['raw_b'], raw['q']):
+        conflict_epochs.update(int(epoch[sorted_indices[i]]) for i in
+                               conflicting_pairs(epoch[sorted_indices], payload[sorted_indices]))
     order = unique_order(epoch)
-    merged = {key: np.concatenate([p[key] for p in parts])[order] for key in parts[0]}
-    t, b = merged['time'], merged['b']
-    inside = (targets >= t[0]) & (targets <= t[-1]) & (len(t) >= 2)
-    right = np.minimum(np.searchsorted(t, targets, side='left'), len(t) - 1)
+    merged = {key: value[order] for key, value in raw.items()}
+    t, b, native = merged['time'], merged['b'], merged['epoch']
+    ambiguous = np.isin(native, list(conflict_epochs))
+    if target_epochs is None:
+        # Compatibility for local callers; production always supplies native TT2000.
+        dates0 = np.asarray(cdfepoch.to_datetime(native[:1])).astype('datetime64[ns]').astype('int64')[0]
+        target_epochs = native[0] + (np.rint(targets * 1e9).astype(np.int64) - dates0)
+    target_epochs = np.asarray(target_epochs, dtype=np.int64)
+    inside = (target_epochs >= native[0]) & (target_epochs <= native[-1])
+    right = np.minimum(np.searchsorted(native, target_epochs, side='left'), len(native) - 1)
     left = np.maximum(right - 1, 0)
-    exact = t[right] == targets
+    exact = native[right] == target_epochs
     left[exact] = right[exact]
-    gaps = t[right] - t[left]
+    delta_ns = native[right] - native[left]
+    gaps = delta_ns.astype(float) / 1e9
     finite = np.isfinite(b[left]).all(axis=1) & np.isfinite(b[right]).all(axis=1)
+    conflict = ambiguous[left] | ambiguous[right]
+    crosses_quarantine = ((merged['source_index'][left] == merged['source_index'][right]) &
+                          (merged['segment'][left] != merged['segment'][right]))
     reason = np.zeros(len(targets), dtype=np.uint8)
     reason[~inside] |= MOMENT_INVALID_BITS['outside_mgf_support']
     reason[inside & ~finite] |= MOMENT_INVALID_BITS['nonfinite_mgf_bracket']
     reason[inside & (gaps > max_gap)] |= MOMENT_INVALID_BITS['mgf_gap_exceeded']
+    reason[inside & conflict] |= MOMENT_INVALID_BITS['conflicting_mgf_epoch']
+    reason[inside & crosses_quarantine] |= MOMENT_INVALID_BITS['quarantined_mgf_interval']
     b_at = np.full((len(targets), 3), np.nan)
     good = reason == 0
     if good.any():
-        b_at[good] = np.stack([np.interp(targets[good], t, b[:, k]) for k in range(3)], axis=1)
+        weight = np.zeros(good.sum())
+        span = delta_ns[good]
+        np.divide((target_epochs[good] - native[left[good]]).astype(float), span,
+                  out=weight, where=span != 0)
+        b_at[good] = b[left[good]] + weight[:, None] * (b[right[good]] - b[left[good]])
     zero = good & (np.linalg.norm(b_at, axis=1) == 0)
     reason[zero] |= MOMENT_INVALID_BITS['zero_interpolated_mgf']
     b_at[reason != 0] = np.nan
-    gaps = gaps.astype(float)
     gaps[~inside] = np.nan
     good = reason == 0
     if not good.any():
-        invalid_field = bool((reason & (MOMENT_INVALID_BITS['nonfinite_mgf_bracket']
-                                       | MOMENT_INVALID_BITS['zero_interpolated_mgf'])).any())
         raise MissingMagneticData('No particle timestamps have valid magnetic support',
-                                  'invalid_mgf_field' if invalid_field else 'insufficient_mgf_coverage',
-                                  invalid_brackets=len(targets),
-                                  max_gap_seconds=float(np.max(gaps[inside])) if inside.any() else None,
-                                  moment_invalid_reason_counts=reason_counts(reason))
+                                  'no_valid_mgf_support', records_per_species=len(targets),
+                                  computed_records_per_species=0, invalid_records_per_species=len(targets),
+                                  valid_moment_fraction=0., moment_invalid_reason_counts=reason_counts(reason),
+                                  magnetic_input=attrs)
     load_science()
-    # Eligibility is fixed using the original brackets above. Removing invalid
-    # samples here cannot make a rejected particle timestamp eligible again.
-    # It prevents xarray interpolation propagating a neighbouring NaN even at
-    # an exact finite sample. Preserve the original magnetic samples in arrays.
-    keep = np.isfinite(b).all(axis=1)
-    public_t, public_b = t[keep], b[keep]
+    # Public tinterpol receives already-interpolated B at distinct particle times.
+    # Native close MGF epochs never pass through its lossy Unix/xarray index.
+    public_t, public_b = targets[good], b_at[good]
     if len(public_t) == 1:
-        # Only exact matches at this one measured timestamp can be eligible.
-        # Two constant guard points satisfy the public linear interpolator's
-        # two-point requirement; no other particle timestamp is sent to it.
-        public_t = t[[0, -1]]
-        public_b = np.repeat(public_b, 2, axis=0)
+        public_t = np.array([public_t[0] - 1., public_t[0], public_t[0] + 1.])
+        public_b = np.repeat(public_b, 3, axis=0)
+    if np.any(np.diff(public_t) <= 0):
+        raise ValueError('Particle timestamps collapse in public interpolation index')
     psp.store_data('batch_mgf_dsi', data={'x': public_t, 'y': public_b})
-    arrays = {'mgf_epoch_tt2000': merged['epoch'], 'mgf_time_unix': t,
+    arrays = {'mgf_epoch_tt2000': native, 'mgf_time_unix': t,
               'mgf_b_dsi': b, 'mgf_quality_raw': merged['q'],
               'mgf_source_file_index': merged['source_index'],
+              'mgf_source_record_index': merged['record_index'],
+              'mgf_segment_index': merged['segment'], 'mgf_conflicting_epoch': ambiguous,
               'mgf_bracket_gap_seconds': gaps, 'moment_valid': good,
-              'moment_invalid_reason': reason}
+              'moment_invalid_reason': reason, 'mgf_b_dsi_at_particle': b_at}
     return arrays, attrs
 
 
@@ -249,7 +291,7 @@ def execute(request):
     }
     targets = arrays['time_unix']
     b, bmeta = magnetic(request['mgf'], lo, hi, targets, config['mgf_cadence'],
-                        config['max_mgf_gap_seconds'])
+                        config['max_mgf_gap_seconds'], target_epochs=arrays['epoch_tt2000'])
     arrays.update(b)
     valid = arrays['moment_valid']
     computed = int(valid.sum())
@@ -257,12 +299,12 @@ def execute(request):
                  'records': len(targets), 'computed_records': computed,
                  'invalid_records': int((~valid).sum()), 'invalid_reason_counts': reason_counts(arrays['moment_invalid_reason']),
                  'note': 'Validity describes magnetic support, not validity of all particle-distribution bins',
-                 'public_magnetic_input': 'Finite samples only after original-bracket selection; singleton exact matches use constant interpolation guards'}
+                 'public_magnetic_input': 'TT2000 bracket interpolation at eligible particle times; singleton uses constant guards'}
     metadata = {'magnetic_input': bmeta, 'moment_selection': selection, 'species': {}, 'outputs': {},
                 'tensor6_order': ['xx', 'yy', 'zz', 'xy', 'xz', 'yz'],
                 'extra_units': {'ttens': 'eV', 'vthermal': 'km/s', 'symm': 'dimensionless'},
                 'quality': 'Raw flags retained; no flag selection applied',
-                'duplicate_epochs': 'Identical duplicates within a granule: retain last original record; across granules: last dated source',
+                'duplicate_epochs': 'LEPi: retain last verified identical record; MGF: conflicting groups block interpolation, identical groups retain last',
                 'magt3_basis': 'Internal moments_3d magnetic basis; not a fixed geographic FAC'}
     for var, species in config['species'].items():
         name, diagnostics, smeta = species_data(records, order, var, targets)
@@ -327,7 +369,8 @@ def execute(request):
 
 
 def magnetic_failure_result(request, exc):
-    invalid = exc.failure_class in {'invalid_mgf_schema', 'invalid_mgf_field'}
+    invalid = exc.failure_class not in {'empty_mgf_data', 'insufficient_mgf_coverage',
+                                         'no_valid_mgf_support', 'invalid_mgf_field'}
     remote = (not invalid and exc.failure_class == 'empty_mgf_data'
               and not request['mgf'] and any(x['unit'].startswith(('64hz_', '8sec_'))
                   and x['status'] == 'remote_absent' for x in request['acquisition_evidence']))
@@ -336,7 +379,7 @@ def magnetic_failure_result(request, exc):
                 'reason': str(exc), 'retryable': True}
     result = {'status': 'failed_validation' if invalid else 'excluded',
               'failure_class': 'required_input_missing_remote' if remote else exc.failure_class,
-              'reason': str(exc), 'retryable': False, 'classification_version': 1,
+              'reason': str(exc), 'retryable': False, 'classification_version': 2,
               **exc.details}
     if not invalid:
         result['exclusion_basis'] = 'verified_remote_index' if remote else 'verified_mgf_coverage'

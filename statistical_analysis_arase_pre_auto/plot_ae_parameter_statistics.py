@@ -13,6 +13,10 @@ from scipy.stats import spearmanr
 
 import batch_arase as batch
 import plot_occurrence_probability as occurrence
+from statistics_phases import PHASES, classify_phases
+from statistics_selection import add_selection_argument, select_events
+from statistics_plotting import detail_grid, add_output_arguments, should_write, save_figure
+import statistics_correlations as correlations
 
 
 PLOT_CONFIG = {
@@ -20,7 +24,7 @@ PLOT_CONFIG = {
     "ae_min_nT": 0.0,
     "ae_max_nT": None,
     "min_bin_count": 1,
-    "ae_min_valid_fraction": 0.8,
+    "ae_min_valid_fraction": None,
     # None uses all MLT. Set (18.0, 6.0) for the nightside sensitivity test.
     "mlt_sector_hour": None,
     "show_ae_range_spread": False,
@@ -33,7 +37,6 @@ PLOT_CONFIG = {
     "font_size": 14,
 }
 
-PHASES = occurrence.PHASES
 COMPONENTS = ("E", "B", "S")
 FAMILIES = {
     "log10_x0": {
@@ -81,10 +84,13 @@ def _summary(values):
 
 
 def select_phase(master, phase_mode):
+    master = classify_phases(master)
     required = {
-        "phase_mode", "status", AE_COLUMN, AE_VALID_FRACTION_COLUMN,
+        "phase_mode", "status", AE_COLUMN,
         "range_MLT_circular_mean_hour", AE_Q16_COLUMN, AE_Q84_COLUMN,
     }
+    if PLOT_CONFIG["ae_min_valid_fraction"] is not None:
+        required.add(AE_VALID_FRACTION_COLUMN)
     required.update(
         column
         for family in FAMILIES.values()
@@ -97,13 +103,11 @@ def select_phase(master, phase_mode):
         master["phase_mode"].eq(phase_mode) & master["status"].eq("ok")
     ].copy()
     ae = pd.to_numeric(selected[AE_COLUMN], errors="coerce")
-    valid_fraction = pd.to_numeric(
-        selected[AE_VALID_FRACTION_COLUMN], errors="coerce"
-    )
-    selected = selected.loc[
-        ae.ge(PLOT_CONFIG["ae_min_nT"])
-        & valid_fraction.ge(PLOT_CONFIG["ae_min_valid_fraction"])
-    ].copy()
+    keep = np.isfinite(ae) & ae.ge(PLOT_CONFIG["ae_min_nT"])
+    if PLOT_CONFIG["ae_min_valid_fraction"] is not None:
+        valid_fraction = pd.to_numeric(selected[AE_VALID_FRACTION_COLUMN], errors="coerce")
+        keep &= np.isfinite(valid_fraction) & valid_fraction.between(PLOT_CONFIG["ae_min_valid_fraction"], 1.)
+    selected = selected.loc[keep].copy()
     sector = PLOT_CONFIG["mlt_sector_hour"]
     if sector is not None:
         selected = selected.loc[occurrence._in_wrapped_mlt_sector(
@@ -151,7 +155,8 @@ def aggregate_ae_statistics(frame, phase_mode, ae_edges):
                 frame[source_column], errors="coerce"
             ).to_numpy(float)
             pair = in_domain & np.isfinite(parameter)
-            if np.count_nonzero(pair) >= 2:
+            pair_stats = correlations.pair_correlations(ae[pair], parameter[pair])
+            if np.isfinite(pair_stats["spearman_rho"]):
                 correlation = spearmanr(ae[pair], parameter[pair])
                 rho = float(correlation.statistic)
                 p_value = float(correlation.pvalue)
@@ -174,7 +179,9 @@ def aggregate_ae_statistics(frame, phase_mode, ae_edges):
                     "overall_median": overall["median"],
                     "overall_q16": overall["q16"],
                     "overall_q84": overall["q84"],
-                    "spearman_rho": rho,
+                    **pair_stats,
+                    "pearson_x_transform": "identity",
+                    "pearson_y_coordinate": source_column,
                     "spearman_p_value": p_value,
                 })
     return pd.DataFrame(rows)
@@ -209,7 +216,7 @@ def _panel_title(table, family_name, component, panel_label):
         f"median = {row['overall_median']:.3g} "
         f"[{row['overall_q16']:.3g}, {row['overall_q84']:.3g}], "
         f"N = {int(row['overall_n'])}\n"
-        rf"$\rho_{{\mathrm{{S}}}}$ = {row['spearman_rho']:.2f}"
+        + correlations.correlation_label(row['spearman_rho'], row['pearson_r'])
     )
 
 
@@ -281,7 +288,7 @@ def plot_ae_statistics(
             )
             ax.set_xlim(ae_edges[0], ae_edges[-1])
             ax.set_ylim(*y_limits[family_name][component])
-            ax.grid(True, color="0.75", alpha=0.45, linewidth=0.7)
+            detail_grid(ax)
             if row_index == 1:
                 ax.set_xlabel("Range median AE [nT]")
             ax.set_ylabel(family["label"](component))
@@ -303,8 +310,8 @@ def plot_ae_statistics(
     fig.tight_layout(rect=(0, 0.05, 1, 0.93))
     output_base.parent.mkdir(parents=True, exist_ok=True)
     paths = [output_base.with_suffix(".png"), output_base.with_suffix(".pdf")]
-    fig.savefig(paths[0], dpi=PLOT_CONFIG["dpi"], bbox_inches="tight")
-    fig.savefig(paths[1], bbox_inches="tight")
+    save_figure(fig, paths[0], dpi=PLOT_CONFIG["dpi"], bbox_inches="tight")
+    save_figure(fig, paths[1], bbox_inches="tight")
     if show:
         plt.show()
     plt.close(fig)
@@ -313,6 +320,8 @@ def plot_ae_statistics(
 
 def build_parser():
     parser = argparse.ArgumentParser(description=__doc__)
+    add_selection_argument(parser)
+    add_output_arguments(parser)
     parser.add_argument("--ranges", type=Path, default=batch.DEFAULT_RANGES)
     parser.add_argument("--state-dir", type=Path)
     parser.add_argument("--master", type=Path)
@@ -325,8 +334,8 @@ def build_parser():
     return parser
 
 
-def main():
-    args = build_parser().parse_args()
+def main(argv=None):
+    args = build_parser().parse_args(argv)
     payload, ranges = batch.load_ranges(args.ranges)
     ranges_hash = batch.file_sha256(args.ranges)
     key, master_path, output_dir = resolve_paths(args, ranges_hash)
@@ -334,8 +343,10 @@ def main():
         raise FileNotFoundError(f"Master CSV not found: {master_path}")
     start, end = occurrence.manifest_time_window(payload, ranges)
     last_day = end - pd.Timedelta(1, unit="ns")
-    date_label = f"{start:%Y-%m-%d} to {last_day:%Y-%m-%d}"
+    date_label = (f"{start:%Y-%m-%d} to {last_day:%Y-%m-%d}; "
+                  f"occupied 10 s blocks >= {args.min_occupied_blocks}")
     master = pd.read_csv(master_path)
+    master = select_events(master, args.min_occupied_blocks)
     phases = list(dict.fromkeys(args.phase or PHASES))
     frames = {phase: select_phase(master, phase) for phase in phases}
     ae_edges = make_ae_edges(list(frames.values()))
@@ -349,6 +360,8 @@ def main():
             f"{start:%Y%m%d}_{last_day:%Y%m%d}"
         )
         csv_path = output_dir / f"{stem}.csv"
+        if not should_write(output_dir / stem, overwrite=not args.skip_existing):
+            continue
         csv_path.parent.mkdir(parents=True, exist_ok=True)
         table.to_csv(csv_path, index=False)
         written.append(csv_path)

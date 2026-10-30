@@ -1,5 +1,35 @@
 # Arase statistical-analysis batch runner
 
+**統計図の通常の実行入口は`run_statistics.py`。** 全種類・指定種類の作図、βₑの追加集計、
+並列数、既存図の`--overwrite`は[`STATISTICS.md`](STATISTICS.md)を参照。
+個別scriptと下記の旧コマンドは内部実装・互換用として維持する。
+
+βₑ追加集計の並列数を指定する場合は
+[`PARALLEL_ENVIRONMENT_STATISTICS.md`](PARALLEL_ENVIRONMENT_STATISTICS.md)を参照。
+
+βₑ・Tᵢ/Tₑ・地磁気指数（SYM-H・ALを含む）とその変化率をまとめて追加集計・作図する場合は
+[`GEOMAG_DERIVATIVE_STATISTICS.md`](GEOMAG_DERIVATIVE_STATISTICS.md)を参照。
+
+nₑ・Dst・βᵢ・Tᵢ/Tₑごとのκ・X₀依存性は
+[`ENVIRONMENT_PARAMETER_STATISTICS.md`](ENVIRONMENT_PARAMETER_STATISTICS.md)を参照。
+
+L binごとにMLAT・|MLAT|を横軸としてκ・log10 X0のraw点と分布幅を描く場合は
+[`KAPPA_X0_LATITUDE_PROFILES.md`](KAPPA_X0_LATITUDE_PROFILES.md)を参照。
+
+年単位のκ・X0空間統計とAE依存性は
+[`YEARLY_STATISTICS.md`](YEARLY_STATISTICS.md) を参照。
+月別の完了結果を統合し、`plot_yearly_statistics.py --year 2022` で作図できる。
+図の保存先は`auto/statistics/202201-202212/min_blocks_10/`。
+両年統合コマンドの`--min-occupied-blocks`は既定値10で、6を指定すれば`min_blocks_6/`へ保存する。
+統合入力は期間直下の`inputs/`に保持し、閾値変更では再解析・統合し直しを行わない。
+κ・X0空間統計とAE依存性では、
+range代表MLATの符号からtoward ionosphere / toward magnetic equatorを分類する。
+元の解析出力と軌道図のnorth/south分類は維持する。
+年統合のrange数・発生確率は[`YEARLY_OCCURRENCE.md`](YEARLY_OCCURRENCE.md)を参照。
+`plot_yearly_occurrence.py --year 2022 --counts-only`は追加データ取得なしでrange数を作図する。
+両コマンドに`--start-month 202001 --end-month 202212`を指定すると、2020–2022年の元rangeを
+まとめて再集計し、`auto/statistics/202001-202212/min_blocks_N/`へ保存する。
+
 `statistical_analysis_arase/Arase_BE_dispersion_relation_second.ipynb` を、
 `valid_time_ranges` JSON の各 range に対して再開可能な独立 process として実行する。
 元Notebookは変更せず、batch workerがメモリ上のコピーへ時刻とbatch専用設定を適用する。
@@ -57,6 +87,9 @@ master tableには、このrunnerが `complete` と記録したrangeだけを含
 
 必須入力の対象時間内のレコード不在・時間範囲不足、および取得記録の
 `missing_remote` は、理由付きの `excluded`（解析不能・除外）とする。
+LEP-iの時刻レコードが存在しても、全種のfluxがゼロ等で有限な3成分のpartial ion velocityが
+区間内に1点も得られない場合も`excluded / empty_input_data`とする。判定はモーメント合成後、
+FAC変換・診断図より前に行う。有限なゼロ速度は有効値として通し、有効値の計算や解析条件は変えない。
 粒子データには区間内のnative recordを要求する。HFAの補助時系列は区間との
 時間範囲の重なりを確認し、区間内にnative recordがないだけでは除外しない。
 既存の補間・品質条件は維持する。接続失敗、認証エラー、timeoutだけでは
@@ -64,6 +97,11 @@ master tableには、このrunnerが `complete` と記録したrangeだけを含
 `excluded` は通常の `run` と `--noncomplete-only` で再実行しない。
 入力が公開・更新された後に再評価する場合は対象rangeを指定して `--force` を使う。
 runner更新後に完了済み区間も維持して再開する場合は `--noncomplete-only` を使う。
+
+この入力除外チェックは解析versionを変えないminor changeであり、完了済みrangeの再解析・
+全期間の再検証は不要。runnerのファイルhash自体は変わるため、既存完了結果を保持する再開には
+引き続き`--noncomplete-only`を指定する。通常のhash一致判定を緩めたり、完了markerのhashを
+書き換えて互換扱いにしたりはしない。
 
 ```text
 KAW_observation/lepe_ge67eV_vion_v2/run_state/<dataset key>/
@@ -292,7 +330,9 @@ log/linear scale、colormap、minimum dwelling durationは`plot_occurrence_proba
 
 `status == "ok"`のrangeを代表位置でbin分けし、κと`log10(X0)`のmedianを
 L--MLAT面およびL--MLT面へ描く。各図はE、B、Sの3 panelで、L--MLATは18--06 MLTに
-限定する。これらに加え、上段を`log10(X0)`、下段をκとした(a)--(f)の2行3列統合図も
+限定する。南北のrangeを統合したL–|MLAT|図も同じ夜側条件で追加出力する。南北の
+中央値を平均せず、元のrangeをまとめて再集計する。各方向の分類には符号付きMLATを使う。
+これらに加え、上段を`log10(X0)`、下段をκとした(a)--(f)の2行3列統合図も
 出力する。統合図の各panelには、表示binに属するrange全体の
 `median [q16, q84], N`を示す。
 

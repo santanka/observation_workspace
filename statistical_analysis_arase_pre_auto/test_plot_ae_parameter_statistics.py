@@ -62,6 +62,14 @@ class AEParameterStatisticsTests(unittest.TestCase):
         nightside = ae_statistics.select_phase(make_master(), "all")
         self.assertEqual(nightside["range_id"].tolist(), [1])
 
+    def test_disabled_coverage_filter_keeps_short_ranges_and_unknown_coverage(self):
+        ae_statistics.PLOT_CONFIG["ae_min_valid_fraction"] = None
+        frame = make_master()
+        frame[ae_statistics.AE_VALID_FRACTION_COLUMN] = [.1, np.nan, .5, 1.]
+        self.assertEqual(ae_statistics.select_phase(frame, "all").range_id.tolist(), [1, 2, 3])
+        frame = frame.drop(columns=ae_statistics.AE_VALID_FRACTION_COLUMN)
+        self.assertEqual(ae_statistics.select_phase(frame, "all").range_id.tolist(), [1, 2, 3])
+
     def test_dynamic_edges_include_largest_value(self):
         selected = ae_statistics.select_phase(make_master(), "all")
         edges = ae_statistics.make_ae_edges([selected])

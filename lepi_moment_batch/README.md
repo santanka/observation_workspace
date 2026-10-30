@@ -162,16 +162,14 @@ CDFの展開・検証・展開済みファイルの清掃は共有ロックで1�
 理由ビットは1=磁場の時間範囲外、2=補間端点の非有限値/FILLVAL、4=最大ギャップ超過、
 8=補間磁場がゼロ。対応はmanifestの`metadata.moment_selection.invalid_reason_bits`にも保存する。
 全時刻有効なら`complete`、一部なら`partial`。全時刻無効ならNPZは作らず、時間範囲不足は
-`excluded`、全時刻が磁場無効値等で計算不能なら`failed_validation`など、原因別に記録する。
+`excluded`。検証と隔離が完了して全時刻が磁場無効値等で計算不能と判定された場合も`excluded`とし、理由別件数を残す。構造不整合や判定不能は`failed_validation`のままとする。
 `records_per_species`は元レコード数、`computed_records_per_species`・`invalid_records_per_species`は
 それぞれ計算した／できなかった数。`valid_moment_fraction`はレコード数の割合で、滞在時間の割合ではない。
 月別summaryにも、保存したcomplete/partial内の元・計算済み・無効レコード数を各種共通の数として保存する。
 
-公開関数内の補間へは、有効性を元サンプルで確定した後に有限磁場サンプルだけを渡す。
-これはxarray補間が隣のNaNをexactな有限サンプルへ伝播させることを避けるためで、
-欠損をまたぐ補間を再許可する処理ではない。有限サンプルが1個だけなら、そのexact時刻に一致する
-粒子時刻だけが有効になり、公開線形補間器のための定数ガード点を使用する。ガード点は
-観測値として保存せず、元の磁場配列はそのまま保持する。
+公開関数へは、元サンプルのTT2000補間端点で有効性を確定し、粒子時刻上に計算した有限磁場を渡す。
+有効な粒子時刻が1個だけなら、公開補間器に定数ガード点を追加する。ガード点は観測値として
+保存せず、無効と判定した粒子時刻を計算対象へ戻さない。
 
 今回も新しいプロファイルになる。旧`partial`・失敗・除外は`--reuse-results-from`では引き継がず、
 新しい規則で再判定する。新規プロファイルで作成したpartialは通常の再開でSHA256を確認して再利用する。
@@ -327,7 +325,7 @@ CRC・展開サイズを検証し、展開ファイルのSHA256を保持する�
 | `excluded` | 必須ファイルの確認済み不在、検証済みCDF内のサンプル不在、または磁場の時間範囲・ギャップ条件不足。理由と根拠を記録 |
 | `failed_download` | 通信・HTTP・転送長の失敗、未検証のoffline入力。確認済み不在とは区別 |
 | `failed_authorization` | HTTP 401/403。認証・公開状況を確認後に再実行 |
-| `failed_validation` | CDF構造不整合、磁場の非有限値・ゼロ値等。`failure_class`で区別 |
+| `failed_validation` | CDF構造不整合、隔離後に残る時刻逆転など、安全に入力を検証できない場合 |
 | `failed_stage` | 展開失敗等。その日の残りを打ち切る |
 | `failed` / `timeout` / `interrupted` | 計算・ワーカー管理の失敗、計算時間超過、中断。理由と再試行可否を記録 |
 
@@ -342,7 +340,8 @@ CRC・展開サイズを検証し、展開ファイルのSHA256を保持する�
 | `required_input_missing_remote` | 公式indexで必須LEP-i/MGFファイルの不在を確認。`excluded` |
 | `empty_lepi_data` / `empty_mgf_data` | 検証済み入力に必要なサンプルがない。`excluded` |
 | `insufficient_mgf_coverage` | 磁場が全粒子時刻を囲まない、または許容補間ギャップ超過。`excluded` |
-| `invalid_mgf_field` / `invalid_mgf_schema` | 磁場の非有限値・ゼロ値、必要変数不足。`failed_validation` |
+| `no_valid_mgf_support` | 検証・隔離後、全粒子時刻で磁場補間条件を満たさない。`excluded` |
+| `invalid_mgf_schema` | 必要変数不足。`failed_validation` |
 | `catalog_timeout` / `download_timeout` | index取得／ファイル取得のタイムアウト。`failed_download` |
 | `http_error` / `download_error` / `authorization_error` | HTTP・通信・認証の失敗 |
 | `input_validation_error` / `unverified_input` | CDF検証失敗、検証済みoffline入力がない等 |
@@ -531,3 +530,126 @@ HTTP/CDFの統合検証はloopbackサーバーと小さな完全CDF fixtureを�
 DSIモーメントを保持してGSM観測流速を追加する後処理は
 [lepi_gsm_velocity](../lepi_gsm_velocity/README.md) を使う。衛星速度補正は行わない。
 既存DSIのbatchとは独立して実行し、変換結果は別rootへ保存する。
+
+
+## MGF異常レコードの隔離と時刻精度（2026-10-21）
+
+MGFのファイル構造・長さ・埋込チェックサム・必須変数・全レコード読み出しの検証は維持する。
+公称時間範囲±32秒の外（NaT含む）のレコードは索引で隔離し、残りに時刻逆転があれば検証失敗。
+LEP-iの入力検証方針は変更しない。元CDFには変更を加えない。
+
+MGFの同一TT2000時刻に異なる磁場値またはqualityがあれば、その時刻群を曖昧な点として扱う。
+同じ値の重複だけを統合し、矛盾する点への一致・その点を端点とする補間は無効にする。
+異常点を削除して前後をつなぐことはしない。ファイル間の重複にもこの規則を適用する。
+範囲外レコードを途中で隔離した箇所をまたぐ補間も無効にする。最大補間ギャップの条件は維持する。
+
+粒子時刻での磁場は整数TT2000で補間端点を選び、整数の時間差から係数を計算する。
+近接するMGF時刻が絶対Unix秒のfloat64で同じ値になっても、元の2点を保持して処理できる。
+公開moment関数には有効な粒子時刻上の補間済み磁場を渡す。
+
+`moment_invalid_reason`に16=`conflicting_mgf_epoch`、32=`quarantined_mgf_interval`を追加。
+元の粒子時刻・counts・qualityを保持し、無効時刻のmomentをNaNにする規則は同じ。
+NPZに`mgf_source_record_index`、`mgf_segment_index`、`mgf_conflicting_epoch`、
+`mgf_b_dsi_at_particle`を保存し、manifestに隔離した元レコード番号・矛盾時刻を記録する。
+検証済みreceiptにも入力全体の隔離索引を保存する。
+
+全時刻有効は`complete`、一部有効は`partial`、全時刻無効と判定できた場合はNPZを作らず
+`excluded`（通常再開ではスキップ、`--recheck-excluded`で再判定）。破損・構造不整合・
+隔離後の時刻逆転などで判定できない場合は`failed_validation`、計算例外・timeoutも従来どおり失敗。
+磁場有効性の判定であり、全moment量の有限性や未適用のquality条件まで保証するものではない。
+
+処理方針・ソースハッシュが変わるため新規プロファイルになる。既存出力は変更しない。
+旧方針のプロファイルは今回の`--reuse-results-from`互換対象に含めない。
+rawデータは共有キャッシュから利用できるが、新しい検証IDでローカル再検証が必要になる。
+
+ローカル合成CDFによる回帰テスト（外部通信・年次再実行なし）：
+
+```bash
+SPACEPY=/tmp/lepi_test_spacepy MPLCONFIGDIR=/tmp/lepi_test_mpl \
+  .venv_pyspedas/bin/python -m unittest discover -s lepi_moment_batch -p 'test_*.py'
+SPACEPY=/tmp/lepi_test_spacepy MPLCONFIGDIR=/tmp/lepi_test_mpl \
+  .venv_pyspedas/bin/python lepi_moment_batch/check_partial_worker.py
+```
+
+
+## 失敗694区間だけのオフライン回収（2026-10-21）
+
+2022年の監査で抽出した42区間（計算時刻精度）と652区間（MGFレコード検証）を、
+`--recovery-plan`の固定リストで選択できる。11区間の旧invalid_mgf_fieldは今回の対象外。
+月・年・startとは排他的な指定で、`--offline`が必須。計算条件が元プロファイルと異なる場合は停止する。
+
+```bash
+.venv_pyspedas/bin/python lepi_moment_batch/batch.py \
+  --recovery-plan /mnt/j/observation_data/Arase_LEPi_moments/plans/2022_recovery.json \
+  --offline --compute-workers 4 --pause-seconds 0
+```
+
+`--dry-run`を追加すれば対象数と出力先の確認だけを行う。同じコマンドで中断後に再開できる。
+対象外の5分区間は計算・入力prefetchしない。リストには216個のローカルCDF（旧拒否CDF47個を含む）と、
+当時の公式indexで欠落確認された7入力単位の証跡を固定した。ローカルCDFは実行時にSHA256と新規則で検証する。
+不足・不一致・検証失敗は失敗として残し、サーバ照会やダウンロードには切り替えない。
+indexの欠落証跡は過去の判定を利用するもので、現在のサーバ状況を再確認するものではない。
+
+出力は別プロファイルで、`recovery_plan.json`とlast_runの対象件数・plan SHA256で選択範囲を記録する。
+保存先は既定の`/mnt/j/observation_data/Arase_LEPi_moments/native_dsi_1d86398b65a1/`。
+2022_current方式は廃止し、旧3プロファイルの実体は`_archive/20261021_profiles/`へ移動した。
+ルート直下のnative_dsi_*は現行プロファイルのみ。移動対応表は`_archive/migrations/20261021_layout.json`。
+旧state/manifestの絶対パスは履歴として保持しているので、旧パスをたどる場合は対応表を参照する。
+
+年指定はprofile hashに含まれない。同じコード・科学条件・ライブラリ版なら、
+`--year 2021`でも同じ現行プロファイルの`2021/MM/`以下へ保存する。
+
+```bash
+.venv_pyspedas/bin/python lepi_moment_batch/batch.py \
+  --year 2021 --download-workers 8 --compute-workers 4 --pause-seconds 0
+```
+
+この通常実行例は必要な入力の取得を許可する。2022年694区間の回収コマンドは上記の`--offline`を使用する。
+年次の既存2022結果は`_archive/20261021_profiles/native_dsi_eef86189baf8/2022/`に保持している。
+今回回収する694区間以外は自動コピーしない。異なる処理方針の製品を同じprofileとして混ぜず、
+現行プロファイルの`2022/dataset.json`に旧年次結果と新規回収分の構成を記録した。
+
+
+## ダウンロード済み入力での通年再計算
+
+2022年通年の固定入力リスト`plans/2022_full_local.json`を用意した。
+105,120区間、6,955個のローカルCDF、2,174件の過去の欠落証跡を含む。
+694区間限定の`2022_recovery.json`とは別リストで、archiveのmoment製品はコピー・再利用しない。
+
+```bash
+.venv_pyspedas/bin/python lepi_moment_batch/batch.py \
+  --recovery-plan /mnt/j/observation_data/Arase_LEPi_moments/plans/2022_full_local.json \
+  --offline --compute-workers 4 --pause-seconds 0
+```
+
+保存先は現行`native_dsi_1d86398b65a1/2022/MM/`。実計算は起動せずdry-runのみ確認した。
+同じコマンドで中断後に再開できる。`--recovery-plan`というオプション名だが、
+このファイルの選択範囲は2022年全体。単純な`--year 2022 --offline`では旧拒否CDFや欠落証跡を十分に引き継げないため、固定リストを指定する。
+
+
+## プロダクトを指定した入力更新
+
+更新取得専用コマンド（moment計算は起動しない）：
+
+```bash
+.venv_pyspedas/bin/python lepi_moment_batch/refresh_inputs.py \
+  --year 2022 --products mgf64hz --download-workers 8
+```
+
+`--products`は`lepi`、`mgf64hz`、`mgf8sec`を複数指定できる。
+`--month 2022-09`または`--start ... --end ...`にも対応する。
+指定したプロダクトだけ公式indexの最新versionを選び直して再取得する。
+補間のために必要な隣接グラニュールも含む。`--dry-run`なら計画表示だけで通信・書き込みをしない。
+同じバイト列なら既存キャッシュのfingerprintを保持し、同名で内容が変われば旧データをhistoryへ保存してから更新する。
+
+更新後は入力リストをローカル記録から作り直す（通信・moment計算なし）：
+
+```bash
+.venv_pyspedas/bin/python lepi_moment_batch/prepare_local_plan.py --year 2022
+```
+
+既定で`plans/2022_full_local.json`を置き換える。未確認・不一致の入力があれば旧リストを上書きせず停止する。
+欠落確認済みは当時のindex証跡を利用し、未取得・タイムアウトは欠落確定に変更しない。
+CDFの完全なSHA256・スキーマ検証は計算時に行う。更新と計算は別操作で順に実行する。
+その後、上記の通年オフライン計算コマンドを実行する。
+同じ現行profileで完了済みの区間は入力signature/SHA256で再開判定され、入力が変わった区間は再計算される。

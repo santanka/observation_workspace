@@ -21,7 +21,7 @@ def write_field(path, seconds, field, cadence):
         c.write_var({'Variable': 'quality_' + label, 'Data_Type': 41,
                      'Num_Elements': 1, 'Rec_Vary': True, 'Dim_Sizes': []},
                     var_data=np.zeros(len(seconds), dtype=np.int8))
-    return {'expanded_path': str(path), 'source': {'path': str(path)}}
+    return {'nominal_utc': '2022-09-29T05:00:00' if cadence == '64hz' else '2022-09-29T00:00:00', 'expanded_path': str(path), 'source': {'path': str(path)}}
 
 
 def main():
@@ -32,14 +32,14 @@ def main():
     t0 = lo.astype('int64') / 1e9
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
-        # Two granules with one duplicated timestamp; second has priority at the overlap.
+        # Two granules with an identical overlapping sample.
         a = write_field(root/'a.cdf', [0, 8], [[10, 0, 20], [20, 0, 20]], '8sec')
-        b = write_field(root/'b.cdf', [8, 16], [[30, 0, 20], [50, 0, 20]], '8sec')
+        b = write_field(root/'b.cdf', [8, 16], [[20, 0, 20], [50, 0, 20]], '8sec')
         arrays, _ = worker.magnetic([a, b], lo, hi, np.array([t0+4, t0+12]), '8sec', 16.)
-        np.testing.assert_array_equal(arrays['mgf_b_dsi'][:, 0], [10, 30, 50])
+        np.testing.assert_array_equal(arrays['mgf_b_dsi'][:, 0], [10, 20, 50])
         np.testing.assert_array_equal(arrays['mgf_bracket_gap_seconds'], [8, 8])
         actual = worker.psp.get_data('batch_mgf_dsi')
-        np.testing.assert_array_equal(np.interp([t0+4, t0+12], actual.times, actual.y[:, 0]), [20, 40])
+        np.testing.assert_array_equal(np.interp([t0+4, t0+12], actual.times, actual.y[:, 0]), [15, 35])
         try:
             worker.magnetic([a, b], lo, hi, np.array([t0+4]), '8sec', 1.)
         except worker.MissingMagneticData:

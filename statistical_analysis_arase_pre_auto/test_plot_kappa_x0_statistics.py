@@ -37,6 +37,7 @@ class ParameterStatisticsTests(unittest.TestCase):
         statistics.PLOT_CONFIG.update({
             "l_edges": np.array([4.0, 5.0]),
             "mlat_edges_deg": np.array([5.0, 10.0]),
+            "abs_mlat_edges_deg": np.array([0.0, 5.0, 10.0]),
             "mlt_edges_hour": np.array([12.0, 18.0, 24.0]),
             "min_bin_count": 1,
             "dpi": 60,
@@ -74,6 +75,30 @@ class ParameterStatisticsTests(unittest.TestCase):
         self.assertEqual(values["B"], -2.0)
         self.assertEqual(values["S"], -1.0)
 
+    def test_absolute_latitude_pools_ranges_not_hemisphere_medians(self):
+        frame = pd.concat([make_master().iloc[:1]] * 5, ignore_index=True)
+        frame["range_MLAT_deg_mean"] = [7., 7., 7., -7., -7.]
+        frame["range_MLT_circular_mean_hour"] = [21., 21., 21., 21., 12.]
+        frame["kappa_E"] = [1., 2., 3., 100., 999.]
+        table, diagnostic = statistics.aggregate_statistics(frame, "all", "l_abs_mlat", "kappa")
+        row = table.loc[table.component.eq("E") & table.n.gt(0)].iloc[0]
+        self.assertEqual(row["n"], 4)
+        self.assertEqual(row["n_north"], 3)
+        self.assertEqual(row["n_south"], 1)
+        self.assertEqual(row["median"], 2.5)
+        self.assertEqual(diagnostic["n_ranges_outside_mlt_sector"], 1)
+        summary = statistics.displayed_range_summary(frame, table, "l_abs_mlat", "kappa", "E")
+        self.assertEqual(summary["n"], 4)
+        self.assertEqual(summary["median"], 2.5)
+
+    def test_absolute_latitude_half_open_edges_and_equator(self):
+        frame = pd.concat([make_master().iloc[:1]] * 6, ignore_index=True)
+        frame["range_MLAT_deg_mean"] = [0., -5., 5., -10., 10., np.nan]
+        table, _ = statistics.aggregate_statistics(frame, "all", "l_abs_mlat", "kappa")
+        rows = table.loc[table.component.eq("E")].sort_values("coordinate_bin")
+        self.assertEqual(rows.n.tolist(), [1, 2])
+        self.assertEqual(rows.n_equator.tolist(), [1, 0])
+
     def test_minimum_count_is_configurable(self):
         phase = statistics._select_phase(make_master(), "all")
         table, _ = statistics.aggregate_statistics(
@@ -90,6 +115,27 @@ class ParameterStatisticsTests(unittest.TestCase):
             table, "E", l_edges, coordinate_edges
         )
         self.assertTrue(np.ma.getmaskarray(masked)[0, 0])
+
+    def test_five_range_boundary_retains_small_bins_in_csv_table(self):
+        statistics.PLOT_CONFIG["min_bin_count"] = 5
+        for count in (4, 5, 6):
+            frame = pd.concat([make_master().iloc[:1]] * count, ignore_index=True)
+            table, _ = statistics.aggregate_statistics(frame, "all", "l_mlat", "kappa")
+            self.assertEqual(table.loc[table.component.eq("E"), "n"].iloc[0], count)
+            shown = statistics._masked_component(
+                table, "E", statistics.PLOT_CONFIG["l_edges"],
+                statistics.PLOT_CONFIG["mlat_edges_deg"],
+            )
+            self.assertEqual(bool(np.ma.getmaskarray(shown)[0, 0]), count < 5)
+
+    def test_bin_count_cli_in_spatial_and_yearly_runners(self):
+        import plot_yearly_statistics as yearly
+        for module in (statistics, yearly):
+            parser = module.build_parser()
+            period_args = ["--year", "2022"] if module is yearly else []
+            self.assertEqual(parser.parse_args(period_args + ["--min-bin-count", "10"]).min_bin_count, 10)
+            with self.assertRaises(SystemExit):
+                parser.parse_args(period_args + ["--min-bin-count", "0"])
 
     def test_overall_summary_uses_only_ranges_in_displayed_bins(self):
         phase = statistics._select_phase(make_master(), "all")

@@ -1,0 +1,26 @@
+{
+  "state": "/mnt/j/observation_data/Arase_LEPi_moments/native_dsi_eef86189baf8/2022/02/state/20220216/20220216_112000_20220216_112500.json",
+  "mgf": "/mnt/j/observation_data/ergsc/satellite/erg/mgf/l2/64hz/2022/02/erg_mgf_l2_64hz_dsi_2022021611_v04.06.cdf",
+  "unique_native_epochs_after_merge": true,
+  "collapsed_datetime_pairs": 1,
+  "examples": [
+    {
+      "native_epoch_ns_delta": 128,
+      "utc_a": "2022-02-16T11:20:40.089937920",
+      "utc_b": "2022-02-16T11:20:40.089938048",
+      "unix_a": 1645010440.089938,
+      "unix_b": 1645010440.089938,
+      "B_a_nT": [
+        146.4843292236328,
+        166.49871826171875,
+        73.2760009765625
+      ],
+      "B_b_nT": [
+        144.55947875976562,
+        168.3675994873047,
+        73.19499969482422
+      ],
+      "B_identical": false
+    }
+  ]
+}

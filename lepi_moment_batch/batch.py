@@ -27,9 +27,10 @@ DEFAULT_INPUT = Path(os.environ.get('SPEDAS_DATA_DIR', '/mnt/j/observation_data'
 DEFAULT_OUTPUT = Path('/mnt/j/observation_data/Arase_LEPi_moments')
 UTC = dt.timezone.utc
 CHUNK_SECONDS = 300
-MOMENT_TIME_POLICY = 'per_particle_mgf_valid_v1'
+MOMENT_TIME_POLICY = 'per_particle_mgf_valid_tt2000_v2'
 MOMENT_INVALID_BITS = {'outside_mgf_support': 1, 'nonfinite_mgf_bracket': 2,
-                       'mgf_gap_exceeded': 4, 'zero_interpolated_mgf': 8}
+                       'mgf_gap_exceeded': 4, 'zero_interpolated_mgf': 8,
+                       'conflicting_mgf_epoch': 16, 'quarantined_mgf_interval': 32}
 
 
 def atomic_json(path, value):
@@ -114,6 +115,10 @@ def parse_utc(value):
 
 
 def requested_range(args):
+    if getattr(args, 'recovery_plan', None):
+        from recovery_plan import load, ranges
+        selected = ranges(load(args.recovery_plan))
+        return selected[0][0], selected[-1][1]
     if args.month:
         if not re.fullmatch(r'\d{4}-\d{2}', args.month):
             raise ValueError('--month must be YYYY-MM')
@@ -163,7 +168,7 @@ def profile(args):
               'erg_pgs_limit_range', 'erg_convert_flux_units', 'get_lepi_flux_angle_in_sga',
               'erg_pgs_moments_tplot']
     paths = [BASE / 'batch.py', BASE / 'worker.py', BASE / 'acquisition.py',
-             BASE / 'validate_input.py', BASE / 'acquisition_worker.py', BASE / 'compute.py', WORKSPACE / 'lepi_moment_pilot/pilot.py']
+             BASE / 'recovery_plan.py', BASE / 'mgf_policy.py', BASE / 'validate_input.py', BASE / 'acquisition_worker.py', BASE / 'compute.py', WORKSPACE / 'lepi_moment_pilot/pilot.py']
     paths += [package / ('projects/erg/satellite/erg/particle/' + n + '.py') for n in leaves]
     paths += [package / ('particles/moments/' + n + '.py')
               for n in ['spd_pgs_moments', 'moments_3d', 'moments_3d_omega_weights']]
@@ -177,10 +182,11 @@ def profile(args):
               'frame': 'native DSI; spacecraft-relative; no spacecraft-velocity correction',
               'spacecraft_potential_volts_used': 0., 'quality_mask_applied': False,
               'lepi_boundary_tolerance_seconds': getattr(args, 'lepi_boundary_tolerance_seconds', 64.),
-              'duplicate_record_policy': 'within granule: identical payload only, retain last; across granules: last dated source',
+              'duplicate_record_policy': 'LEPi: verified identical within granule, last dated source across granules; MGF: identical only, conflicting epochs block interpolation',
               'sub_anodes_used': False, 'mgf_cadence': args.mgf_cadence,
               'max_mgf_gap_seconds': args.max_mgf_gap_seconds,
               'moment_time_policy': MOMENT_TIME_POLICY,
+              'mgf_record_policy': 'mgf_record_quarantine_tt2000_v1',
               'packages': package_versions,
               'sources': {str(p): sha_file(p) for p in paths}}
     identity = hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()
@@ -291,7 +297,7 @@ def resume_valid(state_path, output, identity, signature):
         if state.get('profile_hash') != identity or state.get('input_signature') != signature:
             return False
         if state['status'] == 'excluded':
-            return (state.get('classification_version') == 1 and state.get('retryable') is False
+            return (state.get('classification_version') in (1, 2) and state.get('retryable') is False
                     and state.get('exclusion_basis') in {'verified_remote_index', 'verified_cdf_timestamps', 'verified_mgf_coverage'}
                     and not output.exists())
         return (state['status'] in {'complete', 'partial'} and state.get('input_verification') == 'verified' and output.exists()
@@ -472,9 +478,9 @@ def monthly_summary(month_dir):
 
 
 @contextmanager
-def track_run(root, start, end, identity, counts):
+def track_run(root, start, end, identity, counts, selection_metadata=None):
     base = {'start_utc': start.isoformat(), 'end_utc_exclusive': end.isoformat(),
-            'profile_hash': identity, 'output_root': str(root)}
+            'profile_hash': identity, 'output_root': str(root), **(selection_metadata or {})}
     atomic_json(root / 'last_run.json', {**base, 'status': 'running', 'counts': dict(counts)})
     try:
         yield
@@ -515,7 +521,16 @@ def run(args, start, end, identity, config):
     from acquisition import Acquisition
     acquisition = Acquisition(args, scratch)
     from progress import Progress
-    total = int((end - start).total_seconds()) // CHUNK_SECONDS
+    initial_selection = None
+    if getattr(args, 'recovery_plan', None):
+        from recovery_plan import load, ranges, CONDITIONS
+        plan = load(args.recovery_plan)
+        if not args.offline:
+            raise ValueError('Recovery plans require --offline')
+        if {k:config[k] for k in CONDITIONS} != plan['conditions']:
+            raise ValueError('Recovery calculation conditions differ from the source profile')
+        initial_selection = set(ranges(plan))
+    total = len(initial_selection) if initial_selection is not None else int((end - start).total_seconds()) // CHUNK_SECONDS
     counts = Counter()
     chunk_statuses = {}
     def record(label, status):
@@ -536,9 +551,13 @@ def run(args, start, end, identity, config):
         # A separate lock protects scratch even if an alternate output root is used.
         with (scratch / '.scratch.lock').open('a+') as scratch_lock:
             fcntl.flock(scratch_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            with track_run(root, start, end, identity, counts):
+            selection_metadata = ({'selected_chunks':len(initial_selection), 'recovery_plan_sha256':plan['plan_sha256']}
+                                  if initial_selection is not None else None)
+            with track_run(root, start, end, identity, counts, selection_metadata):
                 atomic_json(root / 'profile.json', {'profile_hash': identity, 'config': config})
-                selected = None
+                if getattr(args, 'recovery_plan', None):
+                    atomic_json(root / 'recovery_plan.json', plan)
+                selected = initial_selection
                 retry_passes = 0 if args.offline else getattr(args, 'retry_passes', 1)
                 for pass_number in range(retry_passes + 1):
                     if pass_number:
@@ -678,6 +697,8 @@ def run(args, start, end, identity, config):
                         print(json.dumps({'day': day_label, 'request_counts_so_far': dict(counts)}), flush=True)
                 report = {'start_utc': start.isoformat(), 'end_utc_exclusive': end.isoformat(),
                           'profile_hash': identity, 'output_root': str(root), 'counts': dict(counts)}
+                if initial_selection is not None:
+                    report.update(selected_chunks=len(initial_selection), recovery_plan_sha256=plan['plan_sha256'])
                 atomic_json(root / 'last_run.json', report)
                 if (scratch / 'cdf').exists():
                     shutil.rmtree(scratch / 'cdf')
@@ -691,6 +712,7 @@ def main():
     selection = parser.add_mutually_exclusive_group(required=True)
     selection.add_argument('--month')
     selection.add_argument('--year', type=int)
+    selection.add_argument('--recovery-plan', type=Path, help='Frozen five-minute selection and local inputs; requires --offline')
     selection.add_argument('--start', help='UTC or explicit offset; requires --end')
     parser.add_argument('--end')
     parser.add_argument('--input-root', type=Path, default=DEFAULT_INPUT)
@@ -742,16 +764,30 @@ def main():
             or args.download_workers < 1 or args.download_attempts < 1 or args.max_network_failures < 0 or args.retry_passes < 0 or min(args.http_timeout, args.download_timeout, args.validation_timeout) <= 0
             or min(args.retry_delay, args.lepi_boundary_tolerance_seconds, args.retry_pass_delay) < 0 or (args.offline and args.refresh_downloads)):
         parser.error('Invalid acquisition options')
+    if args.recovery_plan and (not args.offline or args.end):
+        parser.error('--recovery-plan requires --offline and cannot be combined with --end')
     try:
         start, end = requested_range(args)
         identity, config = profile(args)
+        if args.recovery_plan:
+            from recovery_plan import load, CONDITIONS
+            if {k:config[k] for k in CONDITIONS} != load(args.recovery_plan)['conditions']:
+                raise ValueError('Recovery calculation conditions differ from the source profile')
     except ValueError as exc:
         parser.error(str(exc))
     if args.dry_run:
         inventory = Counter()
+        if args.recovery_plan:
+            from recovery_plan import load, ranges
+            selected = ranges(load(args.recovery_plan))
+            inventory['selected_chunks'] = len(selected)
+            inventory['local_input_files'] = sum(x['status']=='local_candidate' for x in load(args.recovery_plan)['inputs'].values())
+            inventory['proven_absent_units'] = sum(x['status']=='remote_absent' for x in load(args.recovery_plan)['inputs'].values())
         for day, lo, hi in days(start, end):
+            if args.recovery_plan and not any(lo <= a < hi for a,_ in selected):
+                continue
             inventory['days'] += 1
-            inventory['planned_chunks'] += sum(1 for _ in chunks(lo, hi))
+            inventory['planned_chunks'] += sum(lo <= a < hi for a,_ in selected) if args.recovery_plan else sum(1 for _ in chunks(lo, hi))
             inventory['days_with_local_lepi'] += int(source_day(args.input_root, day) is not None)
         print(json.dumps({'start_utc': start.isoformat(), 'end_utc_exclusive': end.isoformat(),
                           'profile_hash': identity, 'inventory': dict(inventory),

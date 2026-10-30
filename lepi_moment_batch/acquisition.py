@@ -102,11 +102,19 @@ class Acquisition:
         self.root = args.output_root / 'verified_inputs'
         self.root.mkdir(parents=True, exist_ok=True)
         self.results, self.catalogs = {}, {}
+        self.recovery_inputs = None
+        if getattr(args, 'recovery_plan', None):
+            from recovery_plan import load
+            if not args.offline:
+                raise ValueError('Recovery input manifest requires offline acquisition')
+            recovery_plan = load(args.recovery_plan)
+            self.recovery_inputs = recovery_plan['inputs']
+            self.recovery_plan_hash = recovery_plan['plan_sha256']
         self.network_failure_streak = 0
         self.last_http = {}
         self.validator_hash = sha_file(BASE / 'validate_input.py')
         self.validation_identity = hashlib.sha256(json.dumps({
-            'validator': self.validator_hash, 'acquisition': sha_file(BASE / 'acquisition.py'),
+            'validator': self.validator_hash, 'mgf_policy': sha_file(BASE / 'mgf_policy.py'), 'acquisition': sha_file(BASE / 'acquisition.py'),
             'stager': sha_file(BASE / 'batch.py'),
             'cdflib': importlib.metadata.version('cdflib'),
             'numpy': importlib.metadata.version('numpy'),
@@ -303,6 +311,31 @@ class Acquisition:
                 p.unlink(missing_ok=True)
                 p.with_suffix('.json').unlink(missing_ok=True)
 
+    def ensure_recovery_input(self, u):
+        """Use only frozen local bytes or historical absence; never consult a server."""
+        entry = self.recovery_inputs.get(u['key'])
+        try:
+            if entry is None or entry['unit'] != u:
+                raise AcquisitionError('failed_validation', 'Input absent from frozen recovery plan', retryable=False)
+            if entry['status'] == 'remote_absent':
+                evidence = entry['evidence']
+                if not evidence.get('url') or not evidence.get('index_sha256') and evidence.get('http_status') not in (404,410):
+                    raise AcquisitionError('failed_validation', 'Missing historical absence evidence', retryable=False)
+                return {'status':'remote_absent','unit':u,'evidence':evidence,'origin':'frozen_recovery_plan'}
+            path = Path(entry['path'])
+            if fingerprint(path) != entry['fingerprint'] or sha_file(path) != entry['sha256']:
+                raise AcquisitionError('failed_validation', 'Frozen local input changed: '+str(path), retryable=False)
+            _, report = self.verify(path,u)
+            if fingerprint(path) != entry['fingerprint']:
+                raise AcquisitionError('failed_validation', 'Local input changed during validation', retryable=False)
+            return {'status':'verified','unit':u,'path':str(path),'fingerprint':entry['fingerprint'],
+                    'sha256':entry['sha256'],'validation_identity':self.validation_identity,'validation':report,
+                    'origin':'frozen_local_recovery_input'}
+        except (OSError, AcquisitionError) as exc:
+            return {'status':exc.status if isinstance(exc,AcquisitionError) else 'failed_download',
+                    'unit':u,'reason':str(exc),'retryable':getattr(exc,'retryable',False),
+                    **getattr(exc,'details',{})}
+
     def ensure(self, product, date):
         u = unit(product, date)
         key = u['key']
@@ -310,6 +343,12 @@ class Acquisition:
             result = self.results[key]
             if result['status'] == 'verified' and fingerprint(result['path']) != result['fingerprint']:
                 raise AcquisitionError('failed_validation', 'Verified input changed during run: ' + key)
+            return result
+        if self.recovery_inputs is not None:
+            result = self.ensure_recovery_input(u)
+            atomic_json(self.root / 'recovery_validations' / self.recovery_plan_hash / (key + '.json'),
+                        {**result, 'recovery_plan_sha256': self.recovery_plan_hash})
+            self.results[key] = result
             return result
         folder = self.args.input_root / u['folder']
         folder.mkdir(parents=True, exist_ok=True)

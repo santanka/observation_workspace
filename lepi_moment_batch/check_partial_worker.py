@@ -76,7 +76,7 @@ def main():
         request['mgf'][0]['source']=fingerprint(root/'allbad.cdf')
         try:worker.execute(request)
         except worker.MissingMagneticData as exc:
-            assert worker.magnetic_failure_result(request,exc)['status']=='failed_validation'
+            assert worker.magnetic_failure_result(request,exc)['status']=='excluded'
         else:raise AssertionError('All-invalid chunk was accepted')
         assert not (root/'allbad.npz').exists()
     print('Partial worker passed: all 48 moments match valid reference; full timeline/raw diagnostics; singleton; reason bits; all-invalid guard')

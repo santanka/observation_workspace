@@ -1,0 +1,298 @@
+[
+  {
+    "state_path": "/mnt/j/observation_data/Arase_LEPi_moments/native_dsi_1d86398b65a1/2020/02/state/20200212/20200212_061500_20200212_062000.json",
+    "acquisition_evidence": [
+      {
+        "fingerprint": {
+          "mtime_ns": 1790768995174038300,
+          "path": "/mnt/j/observation_data/ergsc/satellite/erg/lepi/l2/3dflux/2020/02/erg_lepi_l2_3dflux_20200212_v03_00.cdf",
+          "size_bytes": 69135498
+        },
+        "sha256": "a09769e5528faf17d48e5f502b6ab08cab1b3dbc383108e7848070be7eda8faf",
+        "status": "verified",
+        "unit": "lepi_20200212",
+        "validation_identity": "c97816878afabca2aaa555031dcc43ba90b3f7b074ff746cd61ad5e3a46e471d"
+      },
+      {
+        "fingerprint": {
+          "mtime_ns": 1793002414961362600,
+          "path": "/mnt/j/observation_data/ergsc/satellite/erg/mgf/l2/64hz/2020/02/erg_mgf_l2_64hz_dsi_2020021206_v04.06.cdf",
+          "size_bytes": 5241801
+        },
+        "sha256": "06eb549ba9a75f6ae3bf41e5725ed554fdea18732a320ea9a50a8405dd8edffd",
+        "status": "verified",
+        "unit": "64hz_2020021206",
+        "validation_identity": "c97816878afabca2aaa555031dcc43ba90b3f7b074ff746cd61ad5e3a46e471d"
+      }
+    ],
+    "cpu_affinity": [
+      7
+    ],
+    "end_utc_exclusive": "2020-02-12T06:20:00+00:00",
+    "exception_type": "UnboundLocalError",
+    "failure_class": "calculation_error",
+    "input_signature": "85107b845c290ef9c849b4ca5dc8cc74b17d83ed5f3942e52e4392af13eba4df",
+    "input_verification": "verified",
+    "inputs": [
+      {
+        "mtime_ns": 1790768995174038300,
+        "path": "/mnt/j/observation_data/ergsc/satellite/erg/lepi/l2/3dflux/2020/02/erg_lepi_l2_3dflux_20200212_v03_00.cdf",
+        "size_bytes": 69135498
+      },
+      {
+        "mtime_ns": 1793002414961362600,
+        "path": "/mnt/j/observation_data/ergsc/satellite/erg/mgf/l2/64hz/2020/02/erg_mgf_l2_64hz_dsi_2020021206_v04.06.cdf",
+        "size_bytes": 5241801
+      }
+    ],
+    "log": "/mnt/j/observation_data/Arase_LEPi_moments/native_dsi_1d86398b65a1/2020/02/logs/20200212/20200212_061500_20200212_062000.log",
+    "max_rss_mib": 226.3828125,
+    "nice": 19,
+    "profile_hash": "1d86398b65a13a82c55c6dc9beecf99b70099d192d39d13ba13c9b55d6f0d5af",
+    "reason": "cannot access local variable 'nextsec' where it is not associated with a value",
+    "retryable": false,
+    "start_utc": "2020-02-12T06:15:00+00:00",
+    "status": "failed",
+    "total_seconds": 12.407519011000659
+  },
+  {
+    "state_path": "/mnt/j/observation_data/Arase_LEPi_moments/native_dsi_1d86398b65a1/2020/02/state/20200212/20200212_062000_20200212_062500.json",
+    "acquisition_evidence": [
+      {
+        "fingerprint": {
+          "mtime_ns": 1790768995174038300,
+          "path": "/mnt/j/observation_data/ergsc/satellite/erg/lepi/l2/3dflux/2020/02/erg_lepi_l2_3dflux_20200212_v03_00.cdf",
+          "size_bytes": 69135498
+        },
+        "sha256": "a09769e5528faf17d48e5f502b6ab08cab1b3dbc383108e7848070be7eda8faf",
+        "status": "verified",
+        "unit": "lepi_20200212",
+        "validation_identity": "c97816878afabca2aaa555031dcc43ba90b3f7b074ff746cd61ad5e3a46e471d"
+      },
+      {
+        "fingerprint": {
+          "mtime_ns": 1793002414961362600,
+          "path": "/mnt/j/observation_data/ergsc/satellite/erg/mgf/l2/64hz/2020/02/erg_mgf_l2_64hz_dsi_2020021206_v04.06.cdf",
+          "size_bytes": 5241801
+        },
+        "sha256": "06eb549ba9a75f6ae3bf41e5725ed554fdea18732a320ea9a50a8405dd8edffd",
+        "status": "verified",
+        "unit": "64hz_2020021206",
+        "validation_identity": "c97816878afabca2aaa555031dcc43ba90b3f7b074ff746cd61ad5e3a46e471d"
+      }
+    ],
+    "cpu_affinity": [
+      8
+    ],
+    "end_utc_exclusive": "2020-02-12T06:25:00+00:00",
+    "exception_type": "UnboundLocalError",
+    "failure_class": "calculation_error",
+    "input_signature": "85107b845c290ef9c849b4ca5dc8cc74b17d83ed5f3942e52e4392af13eba4df",
+    "input_verification": "verified",
+    "inputs": [
+      {
+        "mtime_ns": 1790768995174038300,
+        "path": "/mnt/j/observation_data/ergsc/satellite/erg/lepi/l2/3dflux/2020/02/erg_lepi_l2_3dflux_20200212_v03_00.cdf",
+        "size_bytes": 69135498
+      },
+      {
+        "mtime_ns": 1793002414961362600,
+        "path": "/mnt/j/observation_data/ergsc/satellite/erg/mgf/l2/64hz/2020/02/erg_mgf_l2_64hz_dsi_2020021206_v04.06.cdf",
+        "size_bytes": 5241801
+      }
+    ],
+    "log": "/mnt/j/observation_data/Arase_LEPi_moments/native_dsi_1d86398b65a1/2020/02/logs/20200212/20200212_062000_20200212_062500.log",
+    "max_rss_mib": 225.93359375,
+    "nice": 19,
+    "profile_hash": "1d86398b65a13a82c55c6dc9beecf99b70099d192d39d13ba13c9b55d6f0d5af",
+    "reason": "cannot access local variable 'nextsec' where it is not associated with a value",
+    "retryable": false,
+    "start_utc": "2020-02-12T06:20:00+00:00",
+    "status": "failed",
+    "total_seconds": 11.942769723999845
+  },
+  {
+    "state_path": "/mnt/j/observation_data/Arase_LEPi_moments/native_dsi_1d86398b65a1/2020/02/state/20200212/20200212_062500_20200212_063000.json",
+    "acquisition_evidence": [
+      {
+        "fingerprint": {
+          "mtime_ns": 1790768995174038300,
+          "path": "/mnt/j/observation_data/ergsc/satellite/erg/lepi/l2/3dflux/2020/02/erg_lepi_l2_3dflux_20200212_v03_00.cdf",
+          "size_bytes": 69135498
+        },
+        "sha256": "a09769e5528faf17d48e5f502b6ab08cab1b3dbc383108e7848070be7eda8faf",
+        "status": "verified",
+        "unit": "lepi_20200212",
+        "validation_identity": "c97816878afabca2aaa555031dcc43ba90b3f7b074ff746cd61ad5e3a46e471d"
+      },
+      {
+        "fingerprint": {
+          "mtime_ns": 1793002414961362600,
+          "path": "/mnt/j/observation_data/ergsc/satellite/erg/mgf/l2/64hz/2020/02/erg_mgf_l2_64hz_dsi_2020021206_v04.06.cdf",
+          "size_bytes": 5241801
+        },
+        "sha256": "06eb549ba9a75f6ae3bf41e5725ed554fdea18732a320ea9a50a8405dd8edffd",
+        "status": "verified",
+        "unit": "64hz_2020021206",
+        "validation_identity": "c97816878afabca2aaa555031dcc43ba90b3f7b074ff746cd61ad5e3a46e471d"
+      }
+    ],
+    "cpu_affinity": [
+      9
+    ],
+    "end_utc_exclusive": "2020-02-12T06:30:00+00:00",
+    "exception_type": "UnboundLocalError",
+    "failure_class": "calculation_error",
+    "input_signature": "85107b845c290ef9c849b4ca5dc8cc74b17d83ed5f3942e52e4392af13eba4df",
+    "input_verification": "verified",
+    "inputs": [
+      {
+        "mtime_ns": 1790768995174038300,
+        "path": "/mnt/j/observation_data/ergsc/satellite/erg/lepi/l2/3dflux/2020/02/erg_lepi_l2_3dflux_20200212_v03_00.cdf",
+        "size_bytes": 69135498
+      },
+      {
+        "mtime_ns": 1793002414961362600,
+        "path": "/mnt/j/observation_data/ergsc/satellite/erg/mgf/l2/64hz/2020/02/erg_mgf_l2_64hz_dsi_2020021206_v04.06.cdf",
+        "size_bytes": 5241801
+      }
+    ],
+    "log": "/mnt/j/observation_data/Arase_LEPi_moments/native_dsi_1d86398b65a1/2020/02/logs/20200212/20200212_062500_20200212_063000.log",
+    "max_rss_mib": 225.84765625,
+    "nice": 19,
+    "profile_hash": "1d86398b65a13a82c55c6dc9beecf99b70099d192d39d13ba13c9b55d6f0d5af",
+    "reason": "cannot access local variable 'nextsec' where it is not associated with a value",
+    "retryable": false,
+    "start_utc": "2020-02-12T06:25:00+00:00",
+    "status": "failed",
+    "total_seconds": 11.492033841999728
+  },
+  {
+    "state_path": "/mnt/j/observation_data/Arase_LEPi_moments/native_dsi_1d86398b65a1/2020/02/state/20200212/20200212_065000_20200212_065500.json",
+    "acquisition_evidence": [
+      {
+        "fingerprint": {
+          "mtime_ns": 1790768995174038300,
+          "path": "/mnt/j/observation_data/ergsc/satellite/erg/lepi/l2/3dflux/2020/02/erg_lepi_l2_3dflux_20200212_v03_00.cdf",
+          "size_bytes": 69135498
+        },
+        "sha256": "a09769e5528faf17d48e5f502b6ab08cab1b3dbc383108e7848070be7eda8faf",
+        "status": "verified",
+        "unit": "lepi_20200212",
+        "validation_identity": "c97816878afabca2aaa555031dcc43ba90b3f7b074ff746cd61ad5e3a46e471d"
+      },
+      {
+        "fingerprint": {
+          "mtime_ns": 1793002414961362600,
+          "path": "/mnt/j/observation_data/ergsc/satellite/erg/mgf/l2/64hz/2020/02/erg_mgf_l2_64hz_dsi_2020021206_v04.06.cdf",
+          "size_bytes": 5241801
+        },
+        "sha256": "06eb549ba9a75f6ae3bf41e5725ed554fdea18732a320ea9a50a8405dd8edffd",
+        "status": "verified",
+        "unit": "64hz_2020021206",
+        "validation_identity": "c97816878afabca2aaa555031dcc43ba90b3f7b074ff746cd61ad5e3a46e471d"
+      }
+    ],
+    "cpu_affinity": [
+      14
+    ],
+    "end_utc_exclusive": "2020-02-12T06:55:00+00:00",
+    "exception_type": "UnboundLocalError",
+    "failure_class": "calculation_error",
+    "input_signature": "85107b845c290ef9c849b4ca5dc8cc74b17d83ed5f3942e52e4392af13eba4df",
+    "input_verification": "verified",
+    "inputs": [
+      {
+        "mtime_ns": 1790768995174038300,
+        "path": "/mnt/j/observation_data/ergsc/satellite/erg/lepi/l2/3dflux/2020/02/erg_lepi_l2_3dflux_20200212_v03_00.cdf",
+        "size_bytes": 69135498
+      },
+      {
+        "mtime_ns": 1793002414961362600,
+        "path": "/mnt/j/observation_data/ergsc/satellite/erg/mgf/l2/64hz/2020/02/erg_mgf_l2_64hz_dsi_2020021206_v04.06.cdf",
+        "size_bytes": 5241801
+      }
+    ],
+    "log": "/mnt/j/observation_data/Arase_LEPi_moments/native_dsi_1d86398b65a1/2020/02/logs/20200212/20200212_065000_20200212_065500.log",
+    "max_rss_mib": 226.1875,
+    "nice": 19,
+    "profile_hash": "1d86398b65a13a82c55c6dc9beecf99b70099d192d39d13ba13c9b55d6f0d5af",
+    "reason": "cannot access local variable 'nextsec' where it is not associated with a value",
+    "retryable": false,
+    "start_utc": "2020-02-12T06:50:00+00:00",
+    "status": "failed",
+    "total_seconds": 7.0349041210001815
+  },
+  {
+    "state_path": "/mnt/j/observation_data/Arase_LEPi_moments/native_dsi_1d86398b65a1/2020/02/state/20200212/20200212_065500_20200212_070000.json",
+    "acquisition_evidence": [
+      {
+        "fingerprint": {
+          "mtime_ns": 1790768995174038300,
+          "path": "/mnt/j/observation_data/ergsc/satellite/erg/lepi/l2/3dflux/2020/02/erg_lepi_l2_3dflux_20200212_v03_00.cdf",
+          "size_bytes": 69135498
+        },
+        "sha256": "a09769e5528faf17d48e5f502b6ab08cab1b3dbc383108e7848070be7eda8faf",
+        "status": "verified",
+        "unit": "lepi_20200212",
+        "validation_identity": "c97816878afabca2aaa555031dcc43ba90b3f7b074ff746cd61ad5e3a46e471d"
+      },
+      {
+        "fingerprint": {
+          "mtime_ns": 1793002414961362600,
+          "path": "/mnt/j/observation_data/ergsc/satellite/erg/mgf/l2/64hz/2020/02/erg_mgf_l2_64hz_dsi_2020021206_v04.06.cdf",
+          "size_bytes": 5241801
+        },
+        "sha256": "06eb549ba9a75f6ae3bf41e5725ed554fdea18732a320ea9a50a8405dd8edffd",
+        "status": "verified",
+        "unit": "64hz_2020021206",
+        "validation_identity": "c97816878afabca2aaa555031dcc43ba90b3f7b074ff746cd61ad5e3a46e471d"
+      },
+      {
+        "fingerprint": {
+          "mtime_ns": 1784185207648989800,
+          "path": "/mnt/j/observation_data/ergsc/satellite/erg/mgf/l2/64hz/2020/02/erg_mgf_l2_64hz_dsi_2020021207_v04.06.cdf",
+          "size_bytes": 5246303
+        },
+        "sha256": "3423c88971fed86914f1b80756667d96a79141ce42d557f1fce93c188ffb5569",
+        "status": "verified",
+        "unit": "64hz_2020021207",
+        "validation_identity": "c97816878afabca2aaa555031dcc43ba90b3f7b074ff746cd61ad5e3a46e471d"
+      }
+    ],
+    "cpu_affinity": [
+      15
+    ],
+    "end_utc_exclusive": "2020-02-12T07:00:00+00:00",
+    "exception_type": "UnboundLocalError",
+    "failure_class": "calculation_error",
+    "input_signature": "5f5dc6425164621f6eff92f36f34f3ff62238acc3350e29fc737ffd00244bac7",
+    "input_verification": "verified",
+    "inputs": [
+      {
+        "mtime_ns": 1790768995174038300,
+        "path": "/mnt/j/observation_data/ergsc/satellite/erg/lepi/l2/3dflux/2020/02/erg_lepi_l2_3dflux_20200212_v03_00.cdf",
+        "size_bytes": 69135498
+      },
+      {
+        "mtime_ns": 1793002414961362600,
+        "path": "/mnt/j/observation_data/ergsc/satellite/erg/mgf/l2/64hz/2020/02/erg_mgf_l2_64hz_dsi_2020021206_v04.06.cdf",
+        "size_bytes": 5241801
+      },
+      {
+        "mtime_ns": 1784185207648989800,
+        "path": "/mnt/j/observation_data/ergsc/satellite/erg/mgf/l2/64hz/2020/02/erg_mgf_l2_64hz_dsi_2020021207_v04.06.cdf",
+        "size_bytes": 5246303
+      }
+    ],
+    "log": "/mnt/j/observation_data/Arase_LEPi_moments/native_dsi_1d86398b65a1/2020/02/logs/20200212/20200212_065500_20200212_070000.log",
+    "max_rss_mib": 228.0625,
+    "nice": 19,
+    "profile_hash": "1d86398b65a13a82c55c6dc9beecf99b70099d192d39d13ba13c9b55d6f0d5af",
+    "reason": "cannot access local variable 'nextsec' where it is not associated with a value",
+    "retryable": false,
+    "start_utc": "2020-02-12T06:55:00+00:00",
+    "status": "failed",
+    "total_seconds": 5.993646262000766
+  }
+]

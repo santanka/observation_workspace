@@ -325,6 +325,14 @@ def transform_notebook_source(
         "v_sys_fac = v_ion_fac.rename('v_sys_fac')",
         1,
     )
+    # A file can contain native records but no usable ion moments (e.g. all
+    # species fluxes are zero). Reject that input before FAC rotation/plotting.
+    source = source.replace(
+        ") = combine_ion_moments(ion_moments)",
+        ") = combine_ion_moments(ion_moments)\n"
+        "batch_require_finite_vector(v_ion_dsi, 'LEP-i partial ion velocity (DSI)', time_range)",
+        1,
+    )
 
     # Use a positive, robust rolling window even when the native cadence is
     # sparse or contains duplicated/non-increasing timestamps.
@@ -527,6 +535,21 @@ def batch_require_time_coverage(da, name, interval, require_sample=True):
                  else times.size > 0 and times.min() <= end and times.max() >= start)
     if not available:
         raise ValueError(f"Required input unavailable: {name} has no usable time coverage in {interval}")
+
+def batch_require_finite_vector(da, name, interval):
+    batch_require_time_coverage(da, name, interval)
+    component_dims = [dim for dim in da.dims if dim != 'time']
+    if len(component_dims) != 1 or da.sizes[component_dims[0]] != 3:
+        raise ValueError(f"Required input schema invalid: {name} must be a 3-component vector")
+    times = np.asarray(da.time.values, dtype='datetime64[ns]')
+    start, end = (np.datetime64(t) for t in interval)
+    selected = da.isel(time=np.flatnonzero((times >= start) & (times <= end)))
+    finite = np.isfinite(selected).all(dim=component_dims)
+    if not bool(finite.any()):
+        raise ValueError(
+            f"Required input unavailable: {name} has no finite 3-component samples in {interval}; "
+            "ion moments cannot be formed (zero/nonfinite species density or flux)"
+        )
 
 def batch_dedup_time(obj):
     if "time" not in getattr(obj, "dims", ()):
@@ -810,6 +833,7 @@ def execute_notebook_once(args: argparse.Namespace) -> int:
         "selected = batch_dedup_time(da).sel",
         "ds_B_seg = batch_dedup_time(ds_B_seg)",
         "v_ion_fac = batch_dedup_time(v_ion_fac)",
+        "batch_require_finite_vector(v_ion_dsi,",
         "nd_window = batch_rolling_window_samples",
         "no_update=True",
         "batch_require_time_coverage(",

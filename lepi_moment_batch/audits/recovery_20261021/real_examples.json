@@ -1,0 +1,61 @@
+[
+  {
+    "case": "precision",
+    "start_utc": "2022-02-16T11:20:00+00:00",
+    "mgf_validation": [
+      {
+        "outside_records": 0,
+        "conflicting_epochs": 0
+      }
+    ],
+    "status": "complete",
+    "records_per_species": 38,
+    "computed_records_per_species": 38,
+    "invalid_records_per_species": 0,
+    "moment_invalid_reason_counts": {
+      "conflicting_mgf_epoch": 0,
+      "mgf_gap_exceeded": 0,
+      "nonfinite_mgf_bracket": 0,
+      "outside_mgf_support": 0,
+      "quarantined_mgf_interval": 0,
+      "zero_interpolated_mgf": 0
+    }
+  },
+  {
+    "case": "conflict",
+    "start_utc": "2022-02-08T14:20:00+00:00",
+    "mgf_validation": [
+      {
+        "outside_records": 0,
+        "conflicting_epochs": 1
+      }
+    ],
+    "status": "complete",
+    "records_per_species": 9,
+    "computed_records_per_species": 9,
+    "invalid_records_per_species": 0,
+    "moment_invalid_reason_counts": {
+      "conflicting_mgf_epoch": 0,
+      "mgf_gap_exceeded": 0,
+      "nonfinite_mgf_bracket": 0,
+      "outside_mgf_support": 0,
+      "quarantined_mgf_interval": 0,
+      "zero_interpolated_mgf": 0
+    }
+  },
+  {
+    "case": "outside",
+    "start_utc": "2022-03-04T05:05:00+00:00",
+    "mgf_validation": [
+      {
+        "outside_records": 349,
+        "conflicting_epochs": 0
+      }
+    ],
+    "status": "excluded",
+    "records_per_species": null,
+    "computed_records_per_species": null,
+    "invalid_records_per_species": null,
+    "moment_invalid_reason_counts": null
+  }
+]

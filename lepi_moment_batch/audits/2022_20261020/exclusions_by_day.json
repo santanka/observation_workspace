@@ -1,0 +1,2362 @@
+[
+  {
+    "date": "2022-01-01",
+    "reason": "empty_lepi_data",
+    "chunks": 49
+  },
+  {
+    "date": "2022-01-01",
+    "reason": "required_input_missing_remote",
+    "chunks": 238
+  },
+  {
+    "date": "2022-01-01",
+    "reason": "insufficient_mgf_coverage",
+    "chunks": 1
+  },
+  {
+    "date": "2022-01-07",
+    "reason": "empty_lepi_data",
+    "chunks": 92
+  },
+  {
+    "date": "2022-01-10",
+    "reason": "empty_lepi_data",
+    "chunks": 66
+  },
+  {
+    "date": "2022-01-04",
+    "reason": "empty_lepi_data",
+    "chunks": 68
+  },
+  {
+    "date": "2022-01-13",
+    "reason": "empty_lepi_data",
+    "chunks": 68
+  },
+  {
+    "date": "2022-01-08",
+    "reason": "empty_lepi_data",
+    "chunks": 69
+  },
+  {
+    "date": "2022-01-14",
+    "reason": "empty_lepi_data",
+    "chunks": 66
+  },
+  {
+    "date": "2022-01-06",
+    "reason": "empty_lepi_data",
+    "chunks": 17
+  },
+  {
+    "date": "2022-01-05",
+    "reason": "empty_lepi_data",
+    "chunks": 67
+  },
+  {
+    "date": "2022-01-02",
+    "reason": "empty_lepi_data",
+    "chunks": 69
+  },
+  {
+    "date": "2022-01-12",
+    "reason": "empty_lepi_data",
+    "chunks": 55
+  },
+  {
+    "date": "2022-01-15",
+    "reason": "empty_lepi_data",
+    "chunks": 53
+  },
+  {
+    "date": "2022-01-16",
+    "reason": "empty_lepi_data",
+    "chunks": 36
+  },
+  {
+    "date": "2022-01-11",
+    "reason": "empty_lepi_data",
+    "chunks": 31
+  },
+  {
+    "date": "2022-01-03",
+    "reason": "empty_lepi_data",
+    "chunks": 16
+  },
+  {
+    "date": "2022-01-09",
+    "reason": "empty_lepi_data",
+    "chunks": 18
+  },
+  {
+    "date": "2022-01-17",
+    "reason": "empty_lepi_data",
+    "chunks": 67
+  },
+  {
+    "date": "2022-01-19",
+    "reason": "empty_lepi_data",
+    "chunks": 130
+  },
+  {
+    "date": "2022-01-20",
+    "reason": "empty_lepi_data",
+    "chunks": 69
+  },
+  {
+    "date": "2022-01-22",
+    "reason": "empty_lepi_data",
+    "chunks": 70
+  },
+  {
+    "date": "2022-01-21",
+    "reason": "empty_lepi_data",
+    "chunks": 58
+  },
+  {
+    "date": "2022-01-18",
+    "reason": "empty_lepi_data",
+    "chunks": 14
+  },
+  {
+    "date": "2022-01-23",
+    "reason": "empty_lepi_data",
+    "chunks": 14
+  },
+  {
+    "date": "2022-01-24",
+    "reason": "empty_lepi_data",
+    "chunks": 69
+  },
+  {
+    "date": "2022-01-25",
+    "reason": "empty_lepi_data",
+    "chunks": 65
+  },
+  {
+    "date": "2022-01-27",
+    "reason": "empty_lepi_data",
+    "chunks": 64
+  },
+  {
+    "date": "2022-01-29",
+    "reason": "empty_lepi_data",
+    "chunks": 63
+  },
+  {
+    "date": "2022-01-30",
+    "reason": "empty_lepi_data",
+    "chunks": 56
+  },
+  {
+    "date": "2022-01-31",
+    "reason": "empty_lepi_data",
+    "chunks": 35
+  },
+  {
+    "date": "2022-01-26",
+    "reason": "empty_lepi_data",
+    "chunks": 17
+  },
+  {
+    "date": "2022-01-28",
+    "reason": "empty_lepi_data",
+    "chunks": 16
+  },
+  {
+    "date": "2022-02-01",
+    "reason": "insufficient_mgf_coverage",
+    "chunks": 2
+  },
+  {
+    "date": "2022-02-01",
+    "reason": "required_input_missing_remote",
+    "chunks": 222
+  },
+  {
+    "date": "2022-02-01",
+    "reason": "empty_lepi_data",
+    "chunks": 64
+  },
+  {
+    "date": "2022-02-02",
+    "reason": "empty_lepi_data",
+    "chunks": 16
+  },
+  {
+    "date": "2022-02-03",
+    "reason": "empty_lepi_data",
+    "chunks": 63
+  },
+  {
+    "date": "2022-02-05",
+    "reason": "empty_lepi_data",
+    "chunks": 93
+  },
+  {
+    "date": "2022-02-04",
+    "reason": "empty_lepi_data",
+    "chunks": 75
+  },
+  {
+    "date": "2022-02-07",
+    "reason": "empty_lepi_data",
+    "chunks": 62
+  },
+  {
+    "date": "2022-02-08",
+    "reason": "empty_lepi_data",
+    "chunks": 41
+  },
+  {
+    "date": "2022-02-06",
+    "reason": "empty_lepi_data",
+    "chunks": 16
+  },
+  {
+    "date": "2022-02-09",
+    "reason": "empty_lepi_data",
+    "chunks": 39
+  },
+  {
+    "date": "2022-02-12",
+    "reason": "empty_lepi_data",
+    "chunks": 111
+  },
+  {
+    "date": "2022-02-10",
+    "reason": "empty_lepi_data",
+    "chunks": 72
+  },
+  {
+    "date": "2022-02-11",
+    "reason": "empty_lepi_data",
+    "chunks": 13
+  },
+  {
+    "date": "2022-02-14",
+    "reason": "empty_lepi_data",
+    "chunks": 65
+  },
+  {
+    "date": "2022-02-13",
+    "reason": "empty_lepi_data",
+    "chunks": 21
+  },
+  {
+    "date": "2022-02-15",
+    "reason": "empty_lepi_data",
+    "chunks": 25
+  },
+  {
+    "date": "2022-02-16",
+    "reason": "empty_lepi_data",
+    "chunks": 62
+  },
+  {
+    "date": "2022-02-17",
+    "reason": "empty_lepi_data",
+    "chunks": 68
+  },
+  {
+    "date": "2022-02-18",
+    "reason": "empty_lepi_data",
+    "chunks": 61
+  },
+  {
+    "date": "2022-02-21",
+    "reason": "empty_lepi_data",
+    "chunks": 123
+  },
+  {
+    "date": "2022-02-19",
+    "reason": "empty_lepi_data",
+    "chunks": 53
+  },
+  {
+    "date": "2022-02-20",
+    "reason": "empty_lepi_data",
+    "chunks": 45
+  },
+  {
+    "date": "2022-02-22",
+    "reason": "empty_lepi_data",
+    "chunks": 12
+  },
+  {
+    "date": "2022-02-25",
+    "reason": "required_input_missing_remote",
+    "chunks": 176
+  },
+  {
+    "date": "2022-02-25",
+    "reason": "empty_lepi_data",
+    "chunks": 112
+  },
+  {
+    "date": "2022-02-26",
+    "reason": "empty_lepi_data",
+    "chunks": 18
+  },
+  {
+    "date": "2022-02-26",
+    "reason": "required_input_missing_remote",
+    "chunks": 270
+  },
+  {
+    "date": "2022-02-27",
+    "reason": "empty_lepi_data",
+    "chunks": 63
+  },
+  {
+    "date": "2022-02-27",
+    "reason": "required_input_missing_remote",
+    "chunks": 225
+  },
+  {
+    "date": "2022-02-28",
+    "reason": "required_input_missing_remote",
+    "chunks": 268
+  },
+  {
+    "date": "2022-02-28",
+    "reason": "empty_lepi_data",
+    "chunks": 20
+  },
+  {
+    "date": "2022-02-24",
+    "reason": "empty_lepi_data",
+    "chunks": 64
+  },
+  {
+    "date": "2022-02-24",
+    "reason": "insufficient_mgf_coverage",
+    "chunks": 11
+  },
+  {
+    "date": "2022-02-24",
+    "reason": "required_input_missing_remote",
+    "chunks": 63
+  },
+  {
+    "date": "2022-02-23",
+    "reason": "empty_lepi_data",
+    "chunks": 67
+  },
+  {
+    "date": "2022-03-01",
+    "reason": "empty_lepi_data",
+    "chunks": 58
+  },
+  {
+    "date": "2022-03-01",
+    "reason": "required_input_missing_remote",
+    "chunks": 230
+  },
+  {
+    "date": "2022-03-02",
+    "reason": "required_input_missing_remote",
+    "chunks": 219
+  },
+  {
+    "date": "2022-03-02",
+    "reason": "empty_lepi_data",
+    "chunks": 69
+  },
+  {
+    "date": "2022-03-03",
+    "reason": "required_input_missing_remote",
+    "chunks": 277
+  },
+  {
+    "date": "2022-03-03",
+    "reason": "empty_lepi_data",
+    "chunks": 11
+  },
+  {
+    "date": "2022-03-04",
+    "reason": "required_input_missing_remote",
+    "chunks": 34
+  },
+  {
+    "date": "2022-03-04",
+    "reason": "empty_lepi_data",
+    "chunks": 117
+  },
+  {
+    "date": "2022-03-05",
+    "reason": "empty_lepi_data",
+    "chunks": 42
+  },
+  {
+    "date": "2022-03-06",
+    "reason": "empty_lepi_data",
+    "chunks": 160
+  },
+  {
+    "date": "2022-03-08",
+    "reason": "empty_lepi_data",
+    "chunks": 65
+  },
+  {
+    "date": "2022-03-08",
+    "reason": "insufficient_mgf_coverage",
+    "chunks": 14
+  },
+  {
+    "date": "2022-03-08",
+    "reason": "required_input_missing_remote",
+    "chunks": 7
+  },
+  {
+    "date": "2022-03-07",
+    "reason": "empty_lepi_data",
+    "chunks": 12
+  },
+  {
+    "date": "2022-03-09",
+    "reason": "empty_lepi_data",
+    "chunks": 66
+  },
+  {
+    "date": "2022-03-11",
+    "reason": "required_input_missing_remote",
+    "chunks": 10
+  },
+  {
+    "date": "2022-03-11",
+    "reason": "insufficient_mgf_coverage",
+    "chunks": 1
+  },
+  {
+    "date": "2022-03-11",
+    "reason": "empty_lepi_data",
+    "chunks": 66
+  },
+  {
+    "date": "2022-03-10",
+    "reason": "empty_lepi_data",
+    "chunks": 13
+  },
+  {
+    "date": "2022-03-12",
+    "reason": "empty_lepi_data",
+    "chunks": 129
+  },
+  {
+    "date": "2022-03-13",
+    "reason": "empty_lepi_data",
+    "chunks": 15
+  },
+  {
+    "date": "2022-03-14",
+    "reason": "empty_lepi_data",
+    "chunks": 72
+  },
+  {
+    "date": "2022-03-16",
+    "reason": "empty_lepi_data",
+    "chunks": 172
+  },
+  {
+    "date": "2022-03-15",
+    "reason": "empty_lepi_data",
+    "chunks": 42
+  },
+  {
+    "date": "2022-03-17",
+    "reason": "empty_lepi_data",
+    "chunks": 80
+  },
+  {
+    "date": "2022-03-18",
+    "reason": "empty_lepi_data",
+    "chunks": 218
+  },
+  {
+    "date": "2022-03-19",
+    "reason": "empty_lepi_data",
+    "chunks": 14
+  },
+  {
+    "date": "2022-03-20",
+    "reason": "empty_lepi_data",
+    "chunks": 61
+  },
+  {
+    "date": "2022-03-21",
+    "reason": "empty_lepi_data",
+    "chunks": 57
+  },
+  {
+    "date": "2022-03-22",
+    "reason": "empty_lepi_data",
+    "chunks": 22
+  },
+  {
+    "date": "2022-03-23",
+    "reason": "empty_lepi_data",
+    "chunks": 66
+  },
+  {
+    "date": "2022-03-24",
+    "reason": "empty_lepi_data",
+    "chunks": 17
+  },
+  {
+    "date": "2022-03-25",
+    "reason": "empty_lepi_data",
+    "chunks": 60
+  },
+  {
+    "date": "2022-03-26",
+    "reason": "empty_lepi_data",
+    "chunks": 70
+  },
+  {
+    "date": "2022-03-29",
+    "reason": "empty_lepi_data",
+    "chunks": 82
+  },
+  {
+    "date": "2022-03-28",
+    "reason": "empty_lepi_data",
+    "chunks": 51
+  },
+  {
+    "date": "2022-03-31",
+    "reason": "empty_lepi_data",
+    "chunks": 60
+  },
+  {
+    "date": "2022-03-30",
+    "reason": "empty_lepi_data",
+    "chunks": 15
+  },
+  {
+    "date": "2022-03-27",
+    "reason": "empty_lepi_data",
+    "chunks": 9
+  },
+  {
+    "date": "2022-04-01",
+    "reason": "empty_lepi_data",
+    "chunks": 17
+  },
+  {
+    "date": "2022-04-02",
+    "reason": "empty_lepi_data",
+    "chunks": 64
+  },
+  {
+    "date": "2022-04-03",
+    "reason": "empty_lepi_data",
+    "chunks": 166
+  },
+  {
+    "date": "2022-04-04",
+    "reason": "empty_lepi_data",
+    "chunks": 68
+  },
+  {
+    "date": "2022-04-05",
+    "reason": "empty_lepi_data",
+    "chunks": 206
+  },
+  {
+    "date": "2022-04-06",
+    "reason": "empty_lepi_data",
+    "chunks": 41
+  },
+  {
+    "date": "2022-04-07",
+    "reason": "empty_lepi_data",
+    "chunks": 61
+  },
+  {
+    "date": "2022-04-08",
+    "reason": "empty_lepi_data",
+    "chunks": 30
+  },
+  {
+    "date": "2022-04-09",
+    "reason": "empty_lepi_data",
+    "chunks": 102
+  },
+  {
+    "date": "2022-04-11",
+    "reason": "empty_lepi_data",
+    "chunks": 127
+  },
+  {
+    "date": "2022-04-10",
+    "reason": "empty_lepi_data",
+    "chunks": 17
+  },
+  {
+    "date": "2022-04-12",
+    "reason": "empty_lepi_data",
+    "chunks": 48
+  },
+  {
+    "date": "2022-04-14",
+    "reason": "empty_lepi_data",
+    "chunks": 69
+  },
+  {
+    "date": "2022-04-13",
+    "reason": "empty_lepi_data",
+    "chunks": 32
+  },
+  {
+    "date": "2022-04-15",
+    "reason": "empty_lepi_data",
+    "chunks": 18
+  },
+  {
+    "date": "2022-04-15",
+    "reason": "required_input_missing_remote",
+    "chunks": 46
+  },
+  {
+    "date": "2022-04-15",
+    "reason": "insufficient_mgf_coverage",
+    "chunks": 10
+  },
+  {
+    "date": "2022-04-16",
+    "reason": "empty_lepi_data",
+    "chunks": 75
+  },
+  {
+    "date": "2022-04-18",
+    "reason": "empty_lepi_data",
+    "chunks": 103
+  },
+  {
+    "date": "2022-04-17",
+    "reason": "empty_lepi_data",
+    "chunks": 19
+  },
+  {
+    "date": "2022-04-19",
+    "reason": "empty_lepi_data",
+    "chunks": 25
+  },
+  {
+    "date": "2022-04-20",
+    "reason": "empty_lepi_data",
+    "chunks": 54
+  },
+  {
+    "date": "2022-04-21",
+    "reason": "empty_lepi_data",
+    "chunks": 71
+  },
+  {
+    "date": "2022-04-22",
+    "reason": "empty_lepi_data",
+    "chunks": 9
+  },
+  {
+    "date": "2022-04-26",
+    "reason": "insufficient_mgf_coverage",
+    "chunks": 2
+  },
+  {
+    "date": "2022-04-26",
+    "reason": "required_input_missing_remote",
+    "chunks": 191
+  },
+  {
+    "date": "2022-04-26",
+    "reason": "empty_lepi_data",
+    "chunks": 11
+  },
+  {
+    "date": "2022-04-30",
+    "reason": "empty_lepi_data",
+    "chunks": 172
+  },
+  {
+    "date": "2022-04-23",
+    "reason": "empty_lepi_data",
+    "chunks": 43
+  },
+  {
+    "date": "2022-04-28",
+    "reason": "empty_lepi_data",
+    "chunks": 140
+  },
+  {
+    "date": "2022-04-24",
+    "reason": "empty_lepi_data",
+    "chunks": 89
+  },
+  {
+    "date": "2022-04-25",
+    "reason": "empty_lepi_data",
+    "chunks": 72
+  },
+  {
+    "date": "2022-04-25",
+    "reason": "insufficient_mgf_coverage",
+    "chunks": 4
+  },
+  {
+    "date": "2022-04-27",
+    "reason": "empty_lepi_data",
+    "chunks": 67
+  },
+  {
+    "date": "2022-04-29",
+    "reason": "empty_lepi_data",
+    "chunks": 24
+  },
+  {
+    "date": "2022-05-02",
+    "reason": "empty_lepi_data",
+    "chunks": 69
+  },
+  {
+    "date": "2022-05-03",
+    "reason": "empty_lepi_data",
+    "chunks": 62
+  },
+  {
+    "date": "2022-05-05",
+    "reason": "empty_lepi_data",
+    "chunks": 63
+  },
+  {
+    "date": "2022-05-07",
+    "reason": "empty_lepi_data",
+    "chunks": 65
+  },
+  {
+    "date": "2022-05-04",
+    "reason": "empty_lepi_data",
+    "chunks": 19
+  },
+  {
+    "date": "2022-05-01",
+    "reason": "empty_lepi_data",
+    "chunks": 8
+  },
+  {
+    "date": "2022-05-10",
+    "reason": "empty_lepi_data",
+    "chunks": 66
+  },
+  {
+    "date": "2022-05-09",
+    "reason": "empty_lepi_data",
+    "chunks": 62
+  },
+  {
+    "date": "2022-05-06",
+    "reason": "empty_lepi_data",
+    "chunks": 19
+  },
+  {
+    "date": "2022-05-12",
+    "reason": "empty_lepi_data",
+    "chunks": 64
+  },
+  {
+    "date": "2022-05-08",
+    "reason": "empty_lepi_data",
+    "chunks": 19
+  },
+  {
+    "date": "2022-05-27",
+    "reason": "insufficient_mgf_coverage",
+    "chunks": 1
+  },
+  {
+    "date": "2022-05-27",
+    "reason": "required_input_missing_remote",
+    "chunks": 225
+  },
+  {
+    "date": "2022-05-27",
+    "reason": "empty_lepi_data",
+    "chunks": 62
+  },
+  {
+    "date": "2022-05-28",
+    "reason": "required_input_missing_remote",
+    "chunks": 246
+  },
+  {
+    "date": "2022-05-28",
+    "reason": "empty_lepi_data",
+    "chunks": 42
+  },
+  {
+    "date": "2022-05-29",
+    "reason": "empty_lepi_data",
+    "chunks": 44
+  },
+  {
+    "date": "2022-05-29",
+    "reason": "required_input_missing_remote",
+    "chunks": 244
+  },
+  {
+    "date": "2022-05-11",
+    "reason": "empty_lepi_data",
+    "chunks": 23
+  },
+  {
+    "date": "2022-05-30",
+    "reason": "required_input_missing_remote",
+    "chunks": 213
+  },
+  {
+    "date": "2022-05-30",
+    "reason": "empty_lepi_data",
+    "chunks": 75
+  },
+  {
+    "date": "2022-05-31",
+    "reason": "required_input_missing_remote",
+    "chunks": 271
+  },
+  {
+    "date": "2022-05-31",
+    "reason": "empty_lepi_data",
+    "chunks": 17
+  },
+  {
+    "date": "2022-05-14",
+    "reason": "empty_lepi_data",
+    "chunks": 62
+  },
+  {
+    "date": "2022-05-13",
+    "reason": "empty_lepi_data",
+    "chunks": 21
+  },
+  {
+    "date": "2022-05-16",
+    "reason": "empty_lepi_data",
+    "chunks": 62
+  },
+  {
+    "date": "2022-05-15",
+    "reason": "empty_lepi_data",
+    "chunks": 22
+  },
+  {
+    "date": "2022-05-23",
+    "reason": "empty_lepi_data",
+    "chunks": 146
+  },
+  {
+    "date": "2022-05-17",
+    "reason": "empty_lepi_data",
+    "chunks": 44
+  },
+  {
+    "date": "2022-05-18",
+    "reason": "empty_lepi_data",
+    "chunks": 44
+  },
+  {
+    "date": "2022-05-19",
+    "reason": "empty_lepi_data",
+    "chunks": 74
+  },
+  {
+    "date": "2022-05-25",
+    "reason": "empty_lepi_data",
+    "chunks": 114
+  },
+  {
+    "date": "2022-05-24",
+    "reason": "empty_lepi_data",
+    "chunks": 94
+  },
+  {
+    "date": "2022-05-22",
+    "reason": "empty_lepi_data",
+    "chunks": 74
+  },
+  {
+    "date": "2022-05-21",
+    "reason": "empty_lepi_data",
+    "chunks": 63
+  },
+  {
+    "date": "2022-05-20",
+    "reason": "empty_lepi_data",
+    "chunks": 13
+  },
+  {
+    "date": "2022-05-26",
+    "reason": "empty_lepi_data",
+    "chunks": 63
+  },
+  {
+    "date": "2022-06-01",
+    "reason": "required_input_missing_remote",
+    "chunks": 216
+  },
+  {
+    "date": "2022-06-01",
+    "reason": "empty_lepi_data",
+    "chunks": 72
+  },
+  {
+    "date": "2022-06-02",
+    "reason": "required_input_missing_remote",
+    "chunks": 221
+  },
+  {
+    "date": "2022-06-02",
+    "reason": "empty_lepi_data",
+    "chunks": 67
+  },
+  {
+    "date": "2022-06-03",
+    "reason": "required_input_missing_remote",
+    "chunks": 266
+  },
+  {
+    "date": "2022-06-03",
+    "reason": "empty_lepi_data",
+    "chunks": 22
+  },
+  {
+    "date": "2022-06-04",
+    "reason": "required_input_missing_remote",
+    "chunks": 213
+  },
+  {
+    "date": "2022-06-04",
+    "reason": "empty_lepi_data",
+    "chunks": 75
+  },
+  {
+    "date": "2022-06-05",
+    "reason": "empty_lepi_data",
+    "chunks": 13
+  },
+  {
+    "date": "2022-06-05",
+    "reason": "required_input_missing_remote",
+    "chunks": 275
+  },
+  {
+    "date": "2022-06-06",
+    "reason": "required_input_missing_remote",
+    "chunks": 215
+  },
+  {
+    "date": "2022-06-06",
+    "reason": "empty_lepi_data",
+    "chunks": 73
+  },
+  {
+    "date": "2022-06-07",
+    "reason": "required_input_missing_remote",
+    "chunks": 221
+  },
+  {
+    "date": "2022-06-07",
+    "reason": "empty_lepi_data",
+    "chunks": 67
+  },
+  {
+    "date": "2022-06-08",
+    "reason": "required_input_missing_remote",
+    "chunks": 263
+  },
+  {
+    "date": "2022-06-08",
+    "reason": "empty_lepi_data",
+    "chunks": 25
+  },
+  {
+    "date": "2022-06-09",
+    "reason": "required_input_missing_remote",
+    "chunks": 222
+  },
+  {
+    "date": "2022-06-09",
+    "reason": "empty_lepi_data",
+    "chunks": 66
+  },
+  {
+    "date": "2022-06-10",
+    "reason": "required_input_missing_remote",
+    "chunks": 262
+  },
+  {
+    "date": "2022-06-10",
+    "reason": "empty_lepi_data",
+    "chunks": 26
+  },
+  {
+    "date": "2022-06-11",
+    "reason": "required_input_missing_remote",
+    "chunks": 220
+  },
+  {
+    "date": "2022-06-11",
+    "reason": "empty_lepi_data",
+    "chunks": 68
+  },
+  {
+    "date": "2022-06-12",
+    "reason": "required_input_missing_remote",
+    "chunks": 262
+  },
+  {
+    "date": "2022-06-12",
+    "reason": "empty_lepi_data",
+    "chunks": 26
+  },
+  {
+    "date": "2022-06-13",
+    "reason": "required_input_missing_remote",
+    "chunks": 221
+  },
+  {
+    "date": "2022-06-13",
+    "reason": "empty_lepi_data",
+    "chunks": 67
+  },
+  {
+    "date": "2022-06-14",
+    "reason": "required_input_missing_remote",
+    "chunks": 217
+  },
+  {
+    "date": "2022-06-14",
+    "reason": "empty_lepi_data",
+    "chunks": 71
+  },
+  {
+    "date": "2022-06-15",
+    "reason": "empty_lepi_data",
+    "chunks": 28
+  },
+  {
+    "date": "2022-06-15",
+    "reason": "required_input_missing_remote",
+    "chunks": 260
+  },
+  {
+    "date": "2022-06-16",
+    "reason": "empty_lepi_data",
+    "chunks": 74
+  },
+  {
+    "date": "2022-06-16",
+    "reason": "required_input_missing_remote",
+    "chunks": 214
+  },
+  {
+    "date": "2022-06-17",
+    "reason": "required_input_missing_remote",
+    "chunks": 260
+  },
+  {
+    "date": "2022-06-17",
+    "reason": "empty_lepi_data",
+    "chunks": 28
+  },
+  {
+    "date": "2022-06-18",
+    "reason": "required_input_missing_remote",
+    "chunks": 220
+  },
+  {
+    "date": "2022-06-18",
+    "reason": "empty_lepi_data",
+    "chunks": 68
+  },
+  {
+    "date": "2022-06-19",
+    "reason": "required_input_missing_remote",
+    "chunks": 260
+  },
+  {
+    "date": "2022-06-19",
+    "reason": "empty_lepi_data",
+    "chunks": 28
+  },
+  {
+    "date": "2022-06-20",
+    "reason": "required_input_missing_remote",
+    "chunks": 220
+  },
+  {
+    "date": "2022-06-20",
+    "reason": "empty_lepi_data",
+    "chunks": 68
+  },
+  {
+    "date": "2022-06-22",
+    "reason": "empty_lepi_data",
+    "chunks": 46
+  },
+  {
+    "date": "2022-06-22",
+    "reason": "required_input_missing_remote",
+    "chunks": 242
+  },
+  {
+    "date": "2022-06-21",
+    "reason": "required_input_missing_remote",
+    "chunks": 239
+  },
+  {
+    "date": "2022-06-21",
+    "reason": "empty_lepi_data",
+    "chunks": 49
+  },
+  {
+    "date": "2022-06-23",
+    "reason": "required_input_missing_remote",
+    "chunks": 210
+  },
+  {
+    "date": "2022-06-23",
+    "reason": "empty_lepi_data",
+    "chunks": 78
+  },
+  {
+    "date": "2022-06-24",
+    "reason": "required_input_missing_remote",
+    "chunks": 269
+  },
+  {
+    "date": "2022-06-24",
+    "reason": "empty_lepi_data",
+    "chunks": 19
+  },
+  {
+    "date": "2022-06-25",
+    "reason": "required_input_missing_remote",
+    "chunks": 219
+  },
+  {
+    "date": "2022-06-25",
+    "reason": "empty_lepi_data",
+    "chunks": 69
+  },
+  {
+    "date": "2022-06-26",
+    "reason": "empty_lepi_data",
+    "chunks": 29
+  },
+  {
+    "date": "2022-06-26",
+    "reason": "required_input_missing_remote",
+    "chunks": 259
+  },
+  {
+    "date": "2022-06-27",
+    "reason": "empty_lepi_data",
+    "chunks": 75
+  },
+  {
+    "date": "2022-06-27",
+    "reason": "required_input_missing_remote",
+    "chunks": 213
+  },
+  {
+    "date": "2022-06-29",
+    "reason": "required_input_missing_remote",
+    "chunks": 219
+  },
+  {
+    "date": "2022-06-29",
+    "reason": "empty_lepi_data",
+    "chunks": 69
+  },
+  {
+    "date": "2022-06-28",
+    "reason": "required_input_missing_remote",
+    "chunks": 259
+  },
+  {
+    "date": "2022-06-28",
+    "reason": "empty_lepi_data",
+    "chunks": 29
+  },
+  {
+    "date": "2022-06-30",
+    "reason": "required_input_missing_remote",
+    "chunks": 211
+  },
+  {
+    "date": "2022-06-30",
+    "reason": "empty_lepi_data",
+    "chunks": 77
+  },
+  {
+    "date": "2022-07-01",
+    "reason": "required_input_missing_remote",
+    "chunks": 268
+  },
+  {
+    "date": "2022-07-01",
+    "reason": "empty_lepi_data",
+    "chunks": 20
+  },
+  {
+    "date": "2022-07-02",
+    "reason": "required_input_missing_remote",
+    "chunks": 230
+  },
+  {
+    "date": "2022-07-02",
+    "reason": "empty_lepi_data",
+    "chunks": 58
+  },
+  {
+    "date": "2022-07-03",
+    "reason": "empty_lepi_data",
+    "chunks": 50
+  },
+  {
+    "date": "2022-07-03",
+    "reason": "required_input_missing_remote",
+    "chunks": 238
+  },
+  {
+    "date": "2022-07-04",
+    "reason": "required_input_missing_remote",
+    "chunks": 208
+  },
+  {
+    "date": "2022-07-04",
+    "reason": "empty_lepi_data",
+    "chunks": 80
+  },
+  {
+    "date": "2022-07-05",
+    "reason": "required_input_missing_remote",
+    "chunks": 269
+  },
+  {
+    "date": "2022-07-05",
+    "reason": "empty_lepi_data",
+    "chunks": 19
+  },
+  {
+    "date": "2022-07-06",
+    "reason": "required_input_missing_remote",
+    "chunks": 208
+  },
+  {
+    "date": "2022-07-06",
+    "reason": "empty_lepi_data",
+    "chunks": 80
+  },
+  {
+    "date": "2022-07-07",
+    "reason": "required_input_missing_remote",
+    "chunks": 219
+  },
+  {
+    "date": "2022-07-07",
+    "reason": "empty_lepi_data",
+    "chunks": 69
+  },
+  {
+    "date": "2022-07-08",
+    "reason": "empty_lepi_data",
+    "chunks": 64
+  },
+  {
+    "date": "2022-07-08",
+    "reason": "required_input_missing_remote",
+    "chunks": 224
+  },
+  {
+    "date": "2022-07-09",
+    "reason": "required_input_missing_remote",
+    "chunks": 208
+  },
+  {
+    "date": "2022-07-09",
+    "reason": "empty_lepi_data",
+    "chunks": 80
+  },
+  {
+    "date": "2022-07-10",
+    "reason": "empty_lepi_data",
+    "chunks": 20
+  },
+  {
+    "date": "2022-07-10",
+    "reason": "required_input_missing_remote",
+    "chunks": 268
+  },
+  {
+    "date": "2022-07-11",
+    "reason": "required_input_missing_remote",
+    "chunks": 191
+  },
+  {
+    "date": "2022-07-11",
+    "reason": "empty_lepi_data",
+    "chunks": 97
+  },
+  {
+    "date": "2022-07-12",
+    "reason": "required_input_missing_remote",
+    "chunks": 220
+  },
+  {
+    "date": "2022-07-12",
+    "reason": "empty_lepi_data",
+    "chunks": 68
+  },
+  {
+    "date": "2022-07-13",
+    "reason": "required_input_missing_remote",
+    "chunks": 257
+  },
+  {
+    "date": "2022-07-13",
+    "reason": "empty_lepi_data",
+    "chunks": 31
+  },
+  {
+    "date": "2022-07-14",
+    "reason": "required_input_missing_remote",
+    "chunks": 218
+  },
+  {
+    "date": "2022-07-14",
+    "reason": "empty_lepi_data",
+    "chunks": 70
+  },
+  {
+    "date": "2022-07-17",
+    "reason": "required_input_missing_remote",
+    "chunks": 257
+  },
+  {
+    "date": "2022-07-17",
+    "reason": "empty_lepi_data",
+    "chunks": 31
+  },
+  {
+    "date": "2022-07-16",
+    "reason": "required_input_missing_remote",
+    "chunks": 218
+  },
+  {
+    "date": "2022-07-16",
+    "reason": "empty_lepi_data",
+    "chunks": 70
+  },
+  {
+    "date": "2022-07-15",
+    "reason": "required_input_missing_remote",
+    "chunks": 99
+  },
+  {
+    "date": "2022-07-15",
+    "reason": "empty_lepi_data",
+    "chunks": 189
+  },
+  {
+    "date": "2022-07-19",
+    "reason": "empty_lepi_data",
+    "chunks": 261
+  },
+  {
+    "date": "2022-07-19",
+    "reason": "required_input_missing_remote",
+    "chunks": 27
+  },
+  {
+    "date": "2022-07-20",
+    "reason": "empty_lepi_data",
+    "chunks": 31
+  },
+  {
+    "date": "2022-07-20",
+    "reason": "required_input_missing_remote",
+    "chunks": 257
+  },
+  {
+    "date": "2022-07-18",
+    "reason": "required_input_missing_remote",
+    "chunks": 198
+  },
+  {
+    "date": "2022-07-18",
+    "reason": "empty_lepi_data",
+    "chunks": 90
+  },
+  {
+    "date": "2022-07-21",
+    "reason": "empty_lepi_data",
+    "chunks": 72
+  },
+  {
+    "date": "2022-07-21",
+    "reason": "required_input_missing_remote",
+    "chunks": 216
+  },
+  {
+    "date": "2022-07-22",
+    "reason": "required_input_missing_remote",
+    "chunks": 252
+  },
+  {
+    "date": "2022-07-22",
+    "reason": "empty_lepi_data",
+    "chunks": 36
+  },
+  {
+    "date": "2022-07-24",
+    "reason": "required_input_missing_remote",
+    "chunks": 209
+  },
+  {
+    "date": "2022-07-24",
+    "reason": "empty_lepi_data",
+    "chunks": 79
+  },
+  {
+    "date": "2022-07-23",
+    "reason": "empty_lepi_data",
+    "chunks": 65
+  },
+  {
+    "date": "2022-07-23",
+    "reason": "required_input_missing_remote",
+    "chunks": 223
+  },
+  {
+    "date": "2022-07-25",
+    "reason": "required_input_missing_remote",
+    "chunks": 176
+  },
+  {
+    "date": "2022-07-25",
+    "reason": "empty_lepi_data",
+    "chunks": 112
+  },
+  {
+    "date": "2022-07-26",
+    "reason": "empty_lepi_data",
+    "chunks": 163
+  },
+  {
+    "date": "2022-07-26",
+    "reason": "required_input_missing_remote",
+    "chunks": 125
+  },
+  {
+    "date": "2022-07-27",
+    "reason": "required_input_missing_remote",
+    "chunks": 180
+  },
+  {
+    "date": "2022-07-27",
+    "reason": "empty_lepi_data",
+    "chunks": 108
+  },
+  {
+    "date": "2022-07-28",
+    "reason": "empty_lepi_data",
+    "chunks": 44
+  },
+  {
+    "date": "2022-07-28",
+    "reason": "required_input_missing_remote",
+    "chunks": 244
+  },
+  {
+    "date": "2022-07-29",
+    "reason": "required_input_missing_remote",
+    "chunks": 219
+  },
+  {
+    "date": "2022-07-29",
+    "reason": "empty_lepi_data",
+    "chunks": 69
+  },
+  {
+    "date": "2022-07-30",
+    "reason": "required_input_missing_remote",
+    "chunks": 257
+  },
+  {
+    "date": "2022-07-30",
+    "reason": "empty_lepi_data",
+    "chunks": 31
+  },
+  {
+    "date": "2022-07-31",
+    "reason": "required_input_missing_remote",
+    "chunks": 260
+  },
+  {
+    "date": "2022-07-31",
+    "reason": "empty_lepi_data",
+    "chunks": 28
+  },
+  {
+    "date": "2022-08-01",
+    "reason": "empty_lepi_data",
+    "chunks": 73
+  },
+  {
+    "date": "2022-08-01",
+    "reason": "required_input_missing_remote",
+    "chunks": 215
+  },
+  {
+    "date": "2022-08-02",
+    "reason": "required_input_missing_remote",
+    "chunks": 208
+  },
+  {
+    "date": "2022-08-02",
+    "reason": "empty_lepi_data",
+    "chunks": 80
+  },
+  {
+    "date": "2022-08-03",
+    "reason": "required_input_missing_remote",
+    "chunks": 266
+  },
+  {
+    "date": "2022-08-03",
+    "reason": "empty_lepi_data",
+    "chunks": 22
+  },
+  {
+    "date": "2022-08-05",
+    "reason": "required_input_missing_remote",
+    "chunks": 266
+  },
+  {
+    "date": "2022-08-05",
+    "reason": "empty_lepi_data",
+    "chunks": 22
+  },
+  {
+    "date": "2022-08-04",
+    "reason": "required_input_missing_remote",
+    "chunks": 208
+  },
+  {
+    "date": "2022-08-04",
+    "reason": "empty_lepi_data",
+    "chunks": 80
+  },
+  {
+    "date": "2022-08-06",
+    "reason": "required_input_missing_remote",
+    "chunks": 233
+  },
+  {
+    "date": "2022-08-06",
+    "reason": "empty_lepi_data",
+    "chunks": 55
+  },
+  {
+    "date": "2022-08-07",
+    "reason": "empty_lepi_data",
+    "chunks": 46
+  },
+  {
+    "date": "2022-08-07",
+    "reason": "required_input_missing_remote",
+    "chunks": 242
+  },
+  {
+    "date": "2022-08-08",
+    "reason": "required_input_missing_remote",
+    "chunks": 209
+  },
+  {
+    "date": "2022-08-08",
+    "reason": "empty_lepi_data",
+    "chunks": 79
+  },
+  {
+    "date": "2022-08-09",
+    "reason": "required_input_missing_remote",
+    "chunks": 267
+  },
+  {
+    "date": "2022-08-09",
+    "reason": "empty_lepi_data",
+    "chunks": 21
+  },
+  {
+    "date": "2022-08-10",
+    "reason": "required_input_missing_remote",
+    "chunks": 207
+  },
+  {
+    "date": "2022-08-10",
+    "reason": "empty_lepi_data",
+    "chunks": 80
+  },
+  {
+    "date": "2022-08-11",
+    "reason": "empty_lepi_data",
+    "chunks": 76
+  },
+  {
+    "date": "2022-08-15",
+    "reason": "empty_lepi_data",
+    "chunks": 81
+  },
+  {
+    "date": "2022-08-13",
+    "reason": "empty_lepi_data",
+    "chunks": 81
+  },
+  {
+    "date": "2022-08-17",
+    "reason": "empty_lepi_data",
+    "chunks": 21
+  },
+  {
+    "date": "2022-08-12",
+    "reason": "empty_lepi_data",
+    "chunks": 26
+  },
+  {
+    "date": "2022-08-19",
+    "reason": "empty_lepi_data",
+    "chunks": 64
+  },
+  {
+    "date": "2022-08-16",
+    "reason": "empty_lepi_data",
+    "chunks": 70
+  },
+  {
+    "date": "2022-08-18",
+    "reason": "empty_lepi_data",
+    "chunks": 69
+  },
+  {
+    "date": "2022-08-20",
+    "reason": "empty_lepi_data",
+    "chunks": 37
+  },
+  {
+    "date": "2022-08-24",
+    "reason": "empty_lepi_data",
+    "chunks": 79
+  },
+  {
+    "date": "2022-08-21",
+    "reason": "empty_lepi_data",
+    "chunks": 78
+  },
+  {
+    "date": "2022-08-22",
+    "reason": "empty_lepi_data",
+    "chunks": 26
+  },
+  {
+    "date": "2022-08-14",
+    "reason": "empty_lepi_data",
+    "chunks": 22
+  },
+  {
+    "date": "2022-08-26",
+    "reason": "empty_lepi_data",
+    "chunks": 79
+  },
+  {
+    "date": "2022-08-23",
+    "reason": "empty_lepi_data",
+    "chunks": 61
+  },
+  {
+    "date": "2022-08-25",
+    "reason": "empty_lepi_data",
+    "chunks": 20
+  },
+  {
+    "date": "2022-08-30",
+    "reason": "empty_lepi_data",
+    "chunks": 64
+  },
+  {
+    "date": "2022-08-28",
+    "reason": "empty_lepi_data",
+    "chunks": 32
+  },
+  {
+    "date": "2022-08-31",
+    "reason": "empty_lepi_data",
+    "chunks": 37
+  },
+  {
+    "date": "2022-08-27",
+    "reason": "empty_lepi_data",
+    "chunks": 71
+  },
+  {
+    "date": "2022-08-29",
+    "reason": "empty_lepi_data",
+    "chunks": 69
+  },
+  {
+    "date": "2022-09-03",
+    "reason": "empty_lepi_data",
+    "chunks": 124
+  },
+  {
+    "date": "2022-09-01",
+    "reason": "empty_lepi_data",
+    "chunks": 78
+  },
+  {
+    "date": "2022-09-08",
+    "reason": "empty_lepi_data",
+    "chunks": 79
+  },
+  {
+    "date": "2022-09-05",
+    "reason": "empty_lepi_data",
+    "chunks": 68
+  },
+  {
+    "date": "2022-09-07",
+    "reason": "empty_lepi_data",
+    "chunks": 58
+  },
+  {
+    "date": "2022-09-12",
+    "reason": "empty_lepi_data",
+    "chunks": 78
+  },
+  {
+    "date": "2022-09-10",
+    "reason": "empty_lepi_data",
+    "chunks": 61
+  },
+  {
+    "date": "2022-09-06",
+    "reason": "empty_lepi_data",
+    "chunks": 42
+  },
+  {
+    "date": "2022-09-04",
+    "reason": "empty_lepi_data",
+    "chunks": 30
+  },
+  {
+    "date": "2022-09-15",
+    "reason": "empty_lepi_data",
+    "chunks": 79
+  },
+  {
+    "date": "2022-09-14",
+    "reason": "empty_lepi_data",
+    "chunks": 72
+  },
+  {
+    "date": "2022-09-02",
+    "reason": "empty_lepi_data",
+    "chunks": 25
+  },
+  {
+    "date": "2022-09-09",
+    "reason": "empty_lepi_data",
+    "chunks": 19
+  },
+  {
+    "date": "2022-09-11",
+    "reason": "empty_lepi_data",
+    "chunks": 35
+  },
+  {
+    "date": "2022-09-30",
+    "reason": "required_input_missing_remote",
+    "chunks": 288
+  },
+  {
+    "date": "2022-09-13",
+    "reason": "empty_lepi_data",
+    "chunks": 24
+  },
+  {
+    "date": "2022-09-16",
+    "reason": "empty_lepi_data",
+    "chunks": 19
+  },
+  {
+    "date": "2022-09-17",
+    "reason": "empty_lepi_data",
+    "chunks": 77
+  },
+  {
+    "date": "2022-09-29",
+    "reason": "empty_lepi_data",
+    "chunks": 156
+  },
+  {
+    "date": "2022-09-22",
+    "reason": "empty_lepi_data",
+    "chunks": 68
+  },
+  {
+    "date": "2022-09-27",
+    "reason": "empty_lepi_data",
+    "chunks": 87
+  },
+  {
+    "date": "2022-09-24",
+    "reason": "empty_lepi_data",
+    "chunks": 72
+  },
+  {
+    "date": "2022-09-18",
+    "reason": "empty_lepi_data",
+    "chunks": 18
+  },
+  {
+    "date": "2022-09-26",
+    "reason": "empty_lepi_data",
+    "chunks": 76
+  },
+  {
+    "date": "2022-09-19",
+    "reason": "empty_lepi_data",
+    "chunks": 27
+  },
+  {
+    "date": "2022-09-20",
+    "reason": "empty_lepi_data",
+    "chunks": 18
+  },
+  {
+    "date": "2022-09-21",
+    "reason": "empty_lepi_data",
+    "chunks": 27
+  },
+  {
+    "date": "2022-09-23",
+    "reason": "empty_lepi_data",
+    "chunks": 27
+  },
+  {
+    "date": "2022-09-25",
+    "reason": "empty_lepi_data",
+    "chunks": 22
+  },
+  {
+    "date": "2022-09-28",
+    "reason": "empty_lepi_data",
+    "chunks": 26
+  },
+  {
+    "date": "2022-10-01",
+    "reason": "empty_lepi_data",
+    "chunks": 139
+  },
+  {
+    "date": "2022-10-04",
+    "reason": "empty_lepi_data",
+    "chunks": 66
+  },
+  {
+    "date": "2022-10-02",
+    "reason": "empty_lepi_data",
+    "chunks": 22
+  },
+  {
+    "date": "2022-10-03",
+    "reason": "empty_lepi_data",
+    "chunks": 65
+  },
+  {
+    "date": "2022-10-06",
+    "reason": "empty_lepi_data",
+    "chunks": 67
+  },
+  {
+    "date": "2022-10-05",
+    "reason": "empty_lepi_data",
+    "chunks": 25
+  },
+  {
+    "date": "2022-10-08",
+    "reason": "empty_lepi_data",
+    "chunks": 60
+  },
+  {
+    "date": "2022-10-07",
+    "reason": "empty_lepi_data",
+    "chunks": 28
+  },
+  {
+    "date": "2022-10-09",
+    "reason": "empty_lepi_data",
+    "chunks": 72
+  },
+  {
+    "date": "2022-10-10",
+    "reason": "empty_lepi_data",
+    "chunks": 70
+  },
+  {
+    "date": "2022-10-11",
+    "reason": "empty_lepi_data",
+    "chunks": 69
+  },
+  {
+    "date": "2022-10-17",
+    "reason": "required_input_missing_remote",
+    "chunks": 288
+  },
+  {
+    "date": "2022-10-12",
+    "reason": "empty_lepi_data",
+    "chunks": 65
+  },
+  {
+    "date": "2022-10-18",
+    "reason": "required_input_missing_remote",
+    "chunks": 288
+  },
+  {
+    "date": "2022-10-19",
+    "reason": "required_input_missing_remote",
+    "chunks": 288
+  },
+  {
+    "date": "2022-10-20",
+    "reason": "required_input_missing_remote",
+    "chunks": 288
+  },
+  {
+    "date": "2022-10-13",
+    "reason": "empty_lepi_data",
+    "chunks": 19
+  },
+  {
+    "date": "2022-10-13",
+    "reason": "insufficient_mgf_coverage",
+    "chunks": 2
+  },
+  {
+    "date": "2022-10-21",
+    "reason": "empty_lepi_data",
+    "chunks": 123
+  },
+  {
+    "date": "2022-10-16",
+    "reason": "empty_lepi_data",
+    "chunks": 69
+  },
+  {
+    "date": "2022-10-16",
+    "reason": "insufficient_mgf_coverage",
+    "chunks": 18
+  },
+  {
+    "date": "2022-10-14",
+    "reason": "empty_lepi_data",
+    "chunks": 50
+  },
+  {
+    "date": "2022-10-15",
+    "reason": "empty_lepi_data",
+    "chunks": 67
+  },
+  {
+    "date": "2022-10-31",
+    "reason": "empty_lepi_data",
+    "chunks": 248
+  },
+  {
+    "date": "2022-10-24",
+    "reason": "empty_lepi_data",
+    "chunks": 55
+  },
+  {
+    "date": "2022-10-25",
+    "reason": "empty_lepi_data",
+    "chunks": 27
+  },
+  {
+    "date": "2022-10-23",
+    "reason": "empty_lepi_data",
+    "chunks": 15
+  },
+  {
+    "date": "2022-10-26",
+    "reason": "empty_lepi_data",
+    "chunks": 16
+  },
+  {
+    "date": "2022-10-22",
+    "reason": "empty_lepi_data",
+    "chunks": 20
+  },
+  {
+    "date": "2022-10-27",
+    "reason": "empty_lepi_data",
+    "chunks": 17
+  },
+  {
+    "date": "2022-10-28",
+    "reason": "empty_lepi_data",
+    "chunks": 65
+  },
+  {
+    "date": "2022-10-30",
+    "reason": "empty_lepi_data",
+    "chunks": 62
+  },
+  {
+    "date": "2022-10-29",
+    "reason": "empty_lepi_data",
+    "chunks": 19
+  },
+  {
+    "date": "2022-11-01",
+    "reason": "required_input_missing_remote",
+    "chunks": 288
+  },
+  {
+    "date": "2022-11-02",
+    "reason": "required_input_missing_remote",
+    "chunks": 288
+  },
+  {
+    "date": "2022-11-03",
+    "reason": "required_input_missing_remote",
+    "chunks": 288
+  },
+  {
+    "date": "2022-11-04",
+    "reason": "required_input_missing_remote",
+    "chunks": 288
+  },
+  {
+    "date": "2022-11-05",
+    "reason": "empty_lepi_data",
+    "chunks": 77
+  },
+  {
+    "date": "2022-11-05",
+    "reason": "required_input_missing_remote",
+    "chunks": 211
+  },
+  {
+    "date": "2022-11-06",
+    "reason": "required_input_missing_remote",
+    "chunks": 221
+  },
+  {
+    "date": "2022-11-06",
+    "reason": "empty_lepi_data",
+    "chunks": 67
+  },
+  {
+    "date": "2022-11-09",
+    "reason": "empty_lepi_data",
+    "chunks": 69
+  },
+  {
+    "date": "2022-11-14",
+    "reason": "empty_lepi_data",
+    "chunks": 91
+  },
+  {
+    "date": "2022-11-12",
+    "reason": "empty_lepi_data",
+    "chunks": 61
+  },
+  {
+    "date": "2022-11-11",
+    "reason": "empty_lepi_data",
+    "chunks": 67
+  },
+  {
+    "date": "2022-11-08",
+    "reason": "empty_lepi_data",
+    "chunks": 61
+  },
+  {
+    "date": "2022-11-13",
+    "reason": "empty_lepi_data",
+    "chunks": 75
+  },
+  {
+    "date": "2022-11-07",
+    "reason": "required_input_missing_remote",
+    "chunks": 111
+  },
+  {
+    "date": "2022-11-07",
+    "reason": "empty_lepi_data",
+    "chunks": 17
+  },
+  {
+    "date": "2022-11-15",
+    "reason": "empty_lepi_data",
+    "chunks": 65
+  },
+  {
+    "date": "2022-11-10",
+    "reason": "empty_lepi_data",
+    "chunks": 11
+  },
+  {
+    "date": "2022-11-17",
+    "reason": "empty_lepi_data",
+    "chunks": 66
+  },
+  {
+    "date": "2022-11-16",
+    "reason": "empty_lepi_data",
+    "chunks": 11
+  },
+  {
+    "date": "2022-11-18",
+    "reason": "empty_lepi_data",
+    "chunks": 36
+  },
+  {
+    "date": "2022-11-19",
+    "reason": "empty_lepi_data",
+    "chunks": 61
+  },
+  {
+    "date": "2022-11-20",
+    "reason": "empty_lepi_data",
+    "chunks": 68
+  },
+  {
+    "date": "2022-11-23",
+    "reason": "empty_lepi_data",
+    "chunks": 110
+  },
+  {
+    "date": "2022-11-23",
+    "reason": "required_input_missing_remote",
+    "chunks": 22
+  },
+  {
+    "date": "2022-11-23",
+    "reason": "insufficient_mgf_coverage",
+    "chunks": 1
+  },
+  {
+    "date": "2022-11-22",
+    "reason": "empty_lepi_data",
+    "chunks": 66
+  },
+  {
+    "date": "2022-11-21",
+    "reason": "empty_lepi_data",
+    "chunks": 10
+  },
+  {
+    "date": "2022-11-24",
+    "reason": "empty_lepi_data",
+    "chunks": 24
+  },
+  {
+    "date": "2022-11-25",
+    "reason": "empty_lepi_data",
+    "chunks": 61
+  },
+  {
+    "date": "2022-11-28",
+    "reason": "empty_lepi_data",
+    "chunks": 66
+  },
+  {
+    "date": "2022-11-26",
+    "reason": "empty_lepi_data",
+    "chunks": 58
+  },
+  {
+    "date": "2022-11-27",
+    "reason": "empty_lepi_data",
+    "chunks": 20
+  },
+  {
+    "date": "2022-11-29",
+    "reason": "empty_lepi_data",
+    "chunks": 16
+  },
+  {
+    "date": "2022-11-30",
+    "reason": "empty_lepi_data",
+    "chunks": 10
+  },
+  {
+    "date": "2022-12-01",
+    "reason": "empty_lepi_data",
+    "chunks": 69
+  },
+  {
+    "date": "2022-12-02",
+    "reason": "empty_lepi_data",
+    "chunks": 61
+  },
+  {
+    "date": "2022-12-04",
+    "reason": "empty_lepi_data",
+    "chunks": 107
+  },
+  {
+    "date": "2022-12-05",
+    "reason": "empty_lepi_data",
+    "chunks": 47
+  },
+  {
+    "date": "2022-12-03",
+    "reason": "empty_lepi_data",
+    "chunks": 15
+  },
+  {
+    "date": "2022-12-07",
+    "reason": "empty_lepi_data",
+    "chunks": 67
+  },
+  {
+    "date": "2022-12-09",
+    "reason": "empty_lepi_data",
+    "chunks": 117
+  },
+  {
+    "date": "2022-12-06",
+    "reason": "empty_lepi_data",
+    "chunks": 29
+  },
+  {
+    "date": "2022-12-16",
+    "reason": "empty_lepi_data",
+    "chunks": 100
+  },
+  {
+    "date": "2022-12-11",
+    "reason": "empty_lepi_data",
+    "chunks": 61
+  },
+  {
+    "date": "2022-12-13",
+    "reason": "empty_lepi_data",
+    "chunks": 48
+  },
+  {
+    "date": "2022-12-08",
+    "reason": "empty_lepi_data",
+    "chunks": 10
+  },
+  {
+    "date": "2022-12-14",
+    "reason": "empty_lepi_data",
+    "chunks": 67
+  },
+  {
+    "date": "2022-12-10",
+    "reason": "empty_lepi_data",
+    "chunks": 16
+  },
+  {
+    "date": "2022-12-18",
+    "reason": "empty_lepi_data",
+    "chunks": 67
+  },
+  {
+    "date": "2022-12-15",
+    "reason": "empty_lepi_data",
+    "chunks": 9
+  },
+  {
+    "date": "2022-12-12",
+    "reason": "empty_lepi_data",
+    "chunks": 28
+  },
+  {
+    "date": "2022-12-17",
+    "reason": "empty_lepi_data",
+    "chunks": 27
+  },
+  {
+    "date": "2022-12-20",
+    "reason": "empty_lepi_data",
+    "chunks": 65
+  },
+  {
+    "date": "2022-12-21",
+    "reason": "empty_lepi_data",
+    "chunks": 68
+  },
+  {
+    "date": "2022-12-19",
+    "reason": "empty_lepi_data",
+    "chunks": 11
+  },
+  {
+    "date": "2022-12-23",
+    "reason": "empty_lepi_data",
+    "chunks": 81
+  },
+  {
+    "date": "2022-12-24",
+    "reason": "empty_lepi_data",
+    "chunks": 33
+  },
+  {
+    "date": "2022-12-25",
+    "reason": "empty_lepi_data",
+    "chunks": 68
+  },
+  {
+    "date": "2022-12-22",
+    "reason": "empty_lepi_data",
+    "chunks": 10
+  },
+  {
+    "date": "2022-12-28",
+    "reason": "empty_lepi_data",
+    "chunks": 62
+  },
+  {
+    "date": "2022-12-27",
+    "reason": "empty_lepi_data",
+    "chunks": 66
+  },
+  {
+    "date": "2022-12-26",
+    "reason": "empty_lepi_data",
+    "chunks": 11
+  },
+  {
+    "date": "2022-12-31",
+    "reason": "empty_lepi_data",
+    "chunks": 64
+  },
+  {
+    "date": "2022-12-29",
+    "reason": "empty_lepi_data",
+    "chunks": 15
+  },
+  {
+    "date": "2022-12-30",
+    "reason": "empty_lepi_data",
+    "chunks": 13
+  }
+]

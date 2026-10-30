@@ -1,0 +1,266 @@
+{
+  "root": "/mnt/j/observation_data/Arase_LEPi_moments/native_dsi_eef86189baf8",
+  "profile_hash": "eef86189baf8db1cf2e1daae7592dcf51d648b5900fbb169e7ad8844ede18a4a",
+  "expected_chunks": 105120,
+  "state_count": 105120,
+  "statuses": {
+    "excluded": 43474,
+    "complete": 60321,
+    "partial": 620,
+    "failed_validation": 663,
+    "failed": 42
+  },
+  "failure_classes": {
+    "empty_lepi_data": 20543,
+    "required_input_missing_remote": 22864,
+    "insufficient_mgf_coverage": 67,
+    "invalid_mgf_field": 11,
+    "input_validation_error": 652,
+    "calculation_error": 42
+  },
+  "saved_product_records": {
+    "native": 1582396,
+    "computed": 1581602,
+    "invalid": 794
+  },
+  "issues": [],
+  "monthly": [
+    {
+      "month": 1,
+      "statuses": {
+        "excluded": 1886,
+        "complete": 6960,
+        "partial": 76,
+        "failed_validation": 6
+      },
+      "records": {
+        "native": 200768,
+        "computed": 200681,
+        "invalid": 87
+      },
+      "reasons": {
+        "empty_lepi_data": 1647,
+        "required_input_missing_remote": 238,
+        "insufficient_mgf_coverage": 1,
+        "invalid_mgf_field": 6
+      }
+    },
+    {
+      "month": 2,
+      "statuses": {
+        "excluded": 2781,
+        "complete": 5174,
+        "partial": 62,
+        "failed_validation": 43,
+        "failed": 4
+      },
+      "records": {
+        "native": 144651,
+        "computed": 144569,
+        "invalid": 82
+      },
+      "reasons": {
+        "insufficient_mgf_coverage": 13,
+        "required_input_missing_remote": 1224,
+        "empty_lepi_data": 1544,
+        "input_validation_error": 42,
+        "calculation_error": 4,
+        "invalid_mgf_field": 1
+      }
+    },
+    {
+      "month": 3,
+      "statuses": {
+        "excluded": 2783,
+        "failed_validation": 124,
+        "complete": 5929,
+        "partial": 84,
+        "failed": 8
+      },
+      "records": {
+        "native": 165596,
+        "computed": 165487,
+        "invalid": 109
+      },
+      "reasons": {
+        "empty_lepi_data": 1991,
+        "required_input_missing_remote": 777,
+        "input_validation_error": 124,
+        "calculation_error": 8,
+        "insufficient_mgf_coverage": 15
+      }
+    },
+    {
+      "month": 4,
+      "statuses": {
+        "complete": 6199,
+        "excluded": 2293,
+        "partial": 71,
+        "failed_validation": 70,
+        "failed": 7
+      },
+      "records": {
+        "native": 170530,
+        "computed": 170433,
+        "invalid": 97
+      },
+      "reasons": {
+        "empty_lepi_data": 2040,
+        "input_validation_error": 70,
+        "calculation_error": 7,
+        "required_input_missing_remote": 237,
+        "insufficient_mgf_coverage": 16
+      }
+    },
+    {
+      "month": 5,
+      "statuses": {
+        "complete": 5969,
+        "excluded": 2875,
+        "partial": 69,
+        "failed_validation": 14,
+        "failed": 1
+      },
+      "records": {
+        "native": 149054,
+        "computed": 148980,
+        "invalid": 74
+      },
+      "reasons": {
+        "empty_lepi_data": 1675,
+        "insufficient_mgf_coverage": 1,
+        "required_input_missing_remote": 1199,
+        "input_validation_error": 14,
+        "calculation_error": 1
+      }
+    },
+    {
+      "month": 6,
+      "statuses": {
+        "excluded": 8640
+      },
+      "records": {},
+      "reasons": {
+        "required_input_missing_remote": 7068,
+        "empty_lepi_data": 1572
+      }
+    },
+    {
+      "month": 7,
+      "statuses": {
+        "excluded": 8928
+      },
+      "records": {},
+      "reasons": {
+        "required_input_missing_remote": 6643,
+        "empty_lepi_data": 2285
+      }
+    },
+    {
+      "month": 8,
+      "statuses": {
+        "excluded": 4042,
+        "failed_validation": 98,
+        "complete": 4759,
+        "partial": 24,
+        "failed": 5
+      },
+      "records": {
+        "native": 131082,
+        "computed": 131053,
+        "invalid": 29
+      },
+      "reasons": {
+        "empty_lepi_data": 1721,
+        "required_input_missing_remote": 2321,
+        "input_validation_error": 96,
+        "calculation_error": 5,
+        "invalid_mgf_field": 2
+      }
+    },
+    {
+      "month": 9,
+      "statuses": {
+        "excluded": 1880,
+        "complete": 6704,
+        "partial": 55,
+        "failed_validation": 1
+      },
+      "records": {
+        "native": 172955,
+        "computed": 172876,
+        "invalid": 79
+      },
+      "reasons": {
+        "empty_lepi_data": 1592,
+        "invalid_mgf_field": 1,
+        "required_input_missing_remote": 288
+      }
+    },
+    {
+      "month": 10,
+      "statuses": {
+        "excluded": 2792,
+        "complete": 5958,
+        "partial": 58,
+        "failed_validation": 111,
+        "failed": 9
+      },
+      "records": {
+        "native": 165888,
+        "computed": 165786,
+        "invalid": 102
+      },
+      "reasons": {
+        "empty_lepi_data": 1620,
+        "required_input_missing_remote": 1152,
+        "input_validation_error": 110,
+        "insufficient_mgf_coverage": 20,
+        "calculation_error": 9,
+        "invalid_mgf_field": 1
+      }
+    },
+    {
+      "month": 11,
+      "statuses": {
+        "excluded": 3062,
+        "complete": 5461,
+        "partial": 45,
+        "failed_validation": 71,
+        "failed": 1
+      },
+      "records": {
+        "native": 126844,
+        "computed": 126787,
+        "invalid": 57
+      },
+      "reasons": {
+        "required_input_missing_remote": 1717,
+        "empty_lepi_data": 1344,
+        "input_validation_error": 71,
+        "insufficient_mgf_coverage": 1,
+        "calculation_error": 1
+      }
+    },
+    {
+      "month": 12,
+      "statuses": {
+        "failed_validation": 125,
+        "complete": 7208,
+        "excluded": 1512,
+        "partial": 76,
+        "failed": 7
+      },
+      "records": {
+        "native": 155028,
+        "computed": 154950,
+        "invalid": 78
+      },
+      "reasons": {
+        "input_validation_error": 125,
+        "empty_lepi_data": 1512,
+        "calculation_error": 7
+      }
+    }
+  ]
+}

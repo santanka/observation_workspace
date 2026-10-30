@@ -1,5 +1,7 @@
 import tempfile
 import unittest
+import sys
+import types
 from pathlib import Path
 from unittest import mock
 
@@ -15,18 +17,21 @@ def make_master():
         {
             "range_id": 1, "range_duration_sec": 600.0,
             "phase_mode": "all", "status": "ok",
+            "n_occupied_blocks": 6, "block_duration": "10s",
             "range_L_90deg_mean": 4.2, "range_MLAT_deg_mean": 7.0,
             "range_MLT_circular_mean_hour": 21.2,
         },
         {
             "range_id": 2, "range_duration_sec": 300.0,
             "phase_mode": "all", "status": "insufficient_data",
+            "n_occupied_blocks": 5, "block_duration": "10s",
             "range_L_90deg_mean": 4.7, "range_MLAT_deg_mean": 8.0,
             "range_MLT_circular_mean_hour": 21.8,
         },
         {
             "range_id": 3, "range_duration_sec": 120.0,
             "phase_mode": "all", "status": "ok",
+            "n_occupied_blocks": 10, "block_duration": "10s",
             "range_L_90deg_mean": 5.1, "range_MLAT_deg_mean": 12.0,
             "range_MLT_circular_mean_hour": 22.2,
         },
@@ -131,7 +136,12 @@ class OccurrenceProbabilityTests(unittest.TestCase):
             local_file = Path(tmp) / "orb.cdf"
             local_file.write_text("test")
             responses = [[], [], [], [str(local_file)]]
-            with mock.patch("ergpyspedas.erg.orb", side_effect=responses) as loader:
+            module = types.ModuleType("ergpyspedas.erg")
+            module.orb = mock.Mock(side_effect=responses)
+            parent = types.ModuleType("ergpyspedas")
+            parent.erg = module
+            with mock.patch.dict(sys.modules, {"ergpyspedas": parent, "ergpyspedas.erg": module}):
+                loader = module.orb
                 with mock.patch.object(occurrence.time, "sleep"):
                     files = occurrence.ensure_orbit_files(
                         pd.Timestamp("2022-09-01"), pd.Timestamp("2022-09-02"),

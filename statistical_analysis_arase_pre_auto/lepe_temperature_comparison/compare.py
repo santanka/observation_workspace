@@ -206,7 +206,8 @@ def read_var(cdf, name, first=None, last=None):
     return data
 
 
-def compute_native(cdf, source, btime, b, bquality, start, end, packet_mask, energy_upper=np.inf):
+def compute_native(cdf, source, btime, b, bquality, start, end, packet_mask,
+                   energy_upper=np.inf, energy_lower=67.):
     """Load a small record slice in the public LEP-e loader's array convention."""
     import pyspedas as psp
     from cdflib import cdfepoch
@@ -234,7 +235,7 @@ def compute_native(cdf, source, btime, b, bquality, start, end, packet_mask, ene
     safe_b[~bvalid] = [0., 0., 1.]
     psp.store_data('comparison_mgf_dsi', data={'x': unix, 'y': safe_b})
     names = psp.projects.erg.erg_lep_part_products(
-        PREFIX, outputs=['moments'], energy=[67., energy_upper],
+        PREFIX, outputs=['moments'], energy=[energy_lower, energy_upper],
         mag_name='comparison_mgf_dsi')
     if not names or PREFIX + '_ttens' not in names:
         raise RuntimeError('Moment calculation did not return a temperature tensor')
@@ -255,9 +256,10 @@ def compute_native(cdf, source, btime, b, bquality, start, end, packet_mask, ene
     frame['magnetic_valid'] = bvalid
     frame['magnetic_bracket_gap_s'] = gaps
     frame['density_cm3'] = density
-    selected = energy[np.isfinite(energy) & (energy >= 67) & (energy <= energy_upper)]
+    selected = energy[np.isfinite(energy) & (energy >= energy_lower) & (energy <= energy_upper)]
     diagnostics = dict(time_utc=t, ttens_dsi_eV=tensor, b_dsi_nT=b_interp,
                        raw_temperature_eV=raw_temp, packet_info_raw=packet,
+                       velocity_dsi_kms=np.asarray(psp.get_data(PREFIX + '_velocity').y),
                        mgf_quality_left_raw=bquality[left], mgf_quality_right_raw=bquality[right])
     return frame, diagnostics, [float(np.nanmin(selected)), float(np.nanmax(selected))]
 
@@ -576,4 +578,7 @@ def main(argv=None):
 
 
 if __name__ == '__main__':
-    raise SystemExit(main())
+    if '--legacy-dual-energy' in sys.argv:
+        raise SystemExit(main([a for a in sys.argv[1:] if a != '--legacy-dual-energy']))
+    from multiband import main as multiband_main
+    raise SystemExit(multiband_main())

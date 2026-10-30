@@ -18,11 +18,13 @@ from matplotlib.colors import LogNorm, Normalize
 from matplotlib.patches import Circle, Wedge
 import numpy as np
 import pandas as pd
+from statistics_phases import PHASES, classify_phases
 
 
 PLOT_CONFIG = {
     "l_edges": np.arange(3.0, 12.0, 1.0),
     "mlat_edges_deg": np.arange(-50.0, 55.0, 5.0),
+    "abs_mlat_edges_deg": np.arange(0.0, 55.0, 5.0),
     "mlt_edges_hour": np.arange(0.0, 25.0, 1.0),
     "l_mlat_mlt_sector_hour": (18.0, 6.0),
     "min_dwelling_duration_min": 0.0,
@@ -51,14 +53,13 @@ PLOT_CONFIG = {
 ORBIT_DOWNLOAD_RETRIES = 3
 ORBIT_RETRY_DELAYS_SEC = (10, 30)
 
-PHASES = {
-    "all": "All phase components",
-    "north_traveling": "Northward traveling",
-    "south_traveling": "Southward traveling",
-    "standing": "Standing",
-}
-
 POSITION_COLUMNS = {
+    "l_abs_mlat": {
+        "coordinate_column": "range_MLAT_deg_mean",
+        "dwelling_column": "mlat_deg",
+        "coordinate_name": "abs_mlat_deg",
+        "edges_key": "abs_mlat_edges_deg",
+    },
     "l_mlat": {
         "coordinate_column": "range_MLAT_deg_mean",
         "dwelling_column": "mlat_deg",
@@ -294,6 +295,7 @@ def _validated_edges(values, name):
 
 
 def select_phase_ranges(master: pd.DataFrame, phase_mode: str) -> pd.DataFrame:
+    master = classify_phases(master)
     missing = REQUIRED_COLUMNS - set(master.columns)
     if missing:
         raise KeyError(f"Master CSV lacks columns: {sorted(missing)}")
@@ -359,7 +361,7 @@ def aggregate_dwelling(points, coordinate_system, l_edges=None, coordinate_edges
     )
     n_orbit_samples = len(points)
     n_mlt_sector_excluded = 0
-    if coordinate_system == "l_mlat":
+    if coordinate_system in ("l_mlat", "l_abs_mlat"):
         sector_mask = _in_wrapped_mlt_sector(points["mlt_hour"])
         n_mlt_sector_excluded = int((~sector_mask).sum())
         points = points.loc[sector_mask]
@@ -368,6 +370,8 @@ def aggregate_dwelling(points, coordinate_system, l_edges=None, coordinate_edges
     coordinate_value = pd.to_numeric(
         points[spec["dwelling_column"]], errors="coerce"
     ).to_numpy(float)
+    if coordinate_system == "l_abs_mlat":
+        coordinate_value = np.abs(coordinate_value)
     duration = pd.to_numeric(points["dwell_sec"], errors="coerce").to_numpy(float)
     finite, in_domain, l_bin, coordinate_bin = _bin_indices(
         l_value, coordinate_value, duration, l_edges, coordinate_edges
@@ -406,7 +410,7 @@ def aggregate_occurrence(
     )
     n_phase_ranges = len(phase)
     n_mlt_sector_excluded = 0
-    if coordinate_system == "l_mlat":
+    if coordinate_system in ("l_mlat", "l_abs_mlat"):
         sector_mask = _in_wrapped_mlt_sector(phase["range_MLT_circular_mean_hour"])
         n_mlt_sector_excluded = int((~sector_mask).sum())
         phase = phase.loc[sector_mask]
@@ -415,6 +419,8 @@ def aggregate_occurrence(
     coordinate_value = pd.to_numeric(
         phase[spec["coordinate_column"]], errors="coerce"
     ).to_numpy(float)
+    if coordinate_system == "l_abs_mlat":
+        coordinate_value = np.abs(coordinate_value)
     duration = pd.to_numeric(phase["range_duration_sec"], errors="coerce").to_numpy(float)
     finite, in_domain, l_bin, coordinate_bin = _bin_indices(
         l_value, coordinate_value, duration, l_edges, coordinate_edges
@@ -635,8 +641,9 @@ def add_meridional_grid(ax, l_edges, mlat_edges):
 
 
 def plot_l_mlat(table, phase_mode, date_label, output_base, show=False):
+    absolute = table["coordinate_system"].iloc[0] == "l_abs_mlat"
     l_edges = _validated_edges(PLOT_CONFIG["l_edges"], "L")
-    mlat_edges = _validated_edges(PLOT_CONFIG["mlat_edges_deg"], "MLAT")
+    mlat_edges = _validated_edges(PLOT_CONFIG["abs_mlat_edges_deg" if absolute else "mlat_edges_deg"], "MLAT")
     arrays = table_to_arrays(table, l_edges, mlat_edges)
     plotted, covered = _masked_arrays(arrays)
     time_norm, probability_norm = _norms(arrays, covered)
@@ -659,18 +666,22 @@ def plot_l_mlat(table, phase_mode, date_label, output_base, show=False):
         )
         meshes.append(mesh)
         add_meridional_grid(ax, l_edges, mlat_edges)
+        if absolute:
+            for text in ax.texts:
+                if text.get_text().endswith("°"):
+                    text.set_text(text.get_text().lstrip("+"))
         add_meridional_earth(ax)
         ax.set_aspect("equal", adjustable="box")
         ax.set_xlim(-1.15, x_limit)
-        ax.set_ylim(-z_limit, z_limit)
+        ax.set_ylim(-1.15 if absolute else -z_limit, z_limit)
         ax.axhline(0, color="black", linewidth=0.7, alpha=0.5)
         ax.set_title(_panel_labels()[index])
         ax.set_xlabel(r"Nightside distance [$R_{\mathrm{E}}$]")
         label = "Occurrence probability [%]" if probability else "Time [hour]"
         fig.colorbar(mesh, ax=ax, pad=0.025, label=label)
-    axes[0].set_ylabel(r"Northward distance [$R_{\mathrm{E}}$]")
+    axes[0].set_ylabel(r"Magnetic-axis distance $|z|$ [$R_{\mathrm{E}}$]" if absolute else r"Northward distance [$R_{\mathrm{E}}$]")
     fig.suptitle(
-        f"Arase KAW occurrence in L-MLAT: {PHASES[phase_mode]}\n{date_label}"
+        f"Arase KAW occurrence in {'L-|MLAT|' if absolute else 'L-MLAT'}: {PHASES[phase_mode]}\n{date_label}"
     )
     fig.tight_layout(rect=(0, 0, 1, 0.91))
     return _save_figure(fig, output_base, show)
@@ -775,8 +786,8 @@ def build_parser():
     return parser
 
 
-def main():
-    args = build_parser().parse_args()
+def main(argv=None):
+    args = build_parser().parse_args(argv)
     payload, ranges = batch.load_ranges(args.ranges)
     ranges_hash = batch.file_sha256(args.ranges)
     key, master_path, output_dir = resolve_paths(args, ranges_hash)
@@ -814,7 +825,7 @@ def main():
     written = []
     for phase_mode in phases:
         phase = select_phase_ranges(master, phase_mode)
-        for coordinate_system in ("l_mlat", "l_mlt"):
+        for coordinate_system in POSITION_COLUMNS:
             table, diagnostics = aggregate_occurrence(
                 phase, points, coordinate_system
             )
@@ -826,7 +837,7 @@ def main():
             table_path.parent.mkdir(parents=True, exist_ok=True)
             table.to_csv(table_path, index=False)
             written.append(table_path)
-            plotter = plot_l_mlat if coordinate_system == "l_mlat" else plot_l_mlt
+            plotter = plot_l_mlt if coordinate_system == "l_mlt" else plot_l_mlat
             written.extend(plotter(
                 table, phase_mode, date_label, output_dir / stem, show=args.show
             ))

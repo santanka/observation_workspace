@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Plot range-based kappa and log10(X0) statistics in L-MLAT and L-MLT."""
+"""Plot range-based kappa/X0 in L-MLAT, L-|MLAT| and L-MLT."""
 
 from __future__ import annotations
 
 import argparse
+from statistics_plotting import add_output_arguments, should_write
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -13,15 +14,18 @@ import pandas as pd
 
 import batch_arase as batch
 import plot_occurrence_probability as occurrence
+from statistics_phases import PHASES, classify_phases
+from statistics_selection import add_selection_argument, select_events
 
 
 PLOT_CONFIG = {
     "l_edges": np.arange(3.0, 12.0, 1.0),
     "mlat_edges_deg": np.arange(-50.0, 55.0, 5.0),
+    "abs_mlat_edges_deg": np.arange(0.0, 55.0, 5.0),
     "mlt_edges_hour": np.arange(0.0, 25.0, 1.0),
     "l_mlat_mlt_sector_hour": (18.0, 6.0),
     "statistic": "median",
-    "min_bin_count": 1,
+    "min_bin_count": 5,
     "color_percentiles": (5.0, 95.0),
     "kappa_color_limits": {"E": None, "B": None, "S": None},
     "log10_x0_color_limits": {"E": None, "B": None, "S": None},
@@ -36,7 +40,6 @@ PLOT_CONFIG = {
     "font_size": 15,
 }
 
-PHASES = occurrence.PHASES
 COMPONENTS = ("E", "B", "S")
 FAMILIES = {
     "kappa": {
@@ -64,6 +67,11 @@ POSITION_COLUMNS = {
         "edges_key": "mlt_edges_hour",
         "coordinate_name": "MLT",
     },
+    "l_abs_mlat": {
+        "coordinate_column": "range_MLAT_deg_mean",
+        "edges_key": "abs_mlat_edges_deg",
+        "coordinate_name": "|MLAT|",
+    },
 }
 
 SUMMARY_FIELDS = ("mean", "std", "median", "q16", "q84", "min", "max")
@@ -85,6 +93,7 @@ def _validated_edges(values, name):
 
 
 def _select_phase(master, phase_mode):
+    master = classify_phases(master)
     required = {
         "phase_mode", "status", "range_L_90deg_mean",
         "range_MLAT_deg_mean", "range_MLT_circular_mean_hour",
@@ -108,7 +117,7 @@ def _select_phase(master, phase_mode):
 def _coordinate_selection(frame, coordinate_system):
     selected = frame.copy()
     n_before = len(selected)
-    if coordinate_system == "l_mlat":
+    if coordinate_system in ("l_mlat", "l_abs_mlat"):
         sector = PLOT_CONFIG["l_mlat_mlt_sector_hour"]
         mask = occurrence._in_wrapped_mlt_sector(
             selected["range_MLT_circular_mean_hour"], sector=sector
@@ -151,6 +160,8 @@ def _spatial_rows(frame, coordinate_system):
     coordinate_value = pd.to_numeric(
         selected[spec["coordinate_column"]], errors="coerce"
     ).to_numpy(float)
+    if coordinate_system == "l_abs_mlat":
+        coordinate_value = np.abs(coordinate_value)
     finite_position = np.isfinite(l_value) & np.isfinite(coordinate_value)
     in_domain = (
         finite_position
@@ -199,6 +210,14 @@ def aggregate_statistics(frame, phase_mode, coordinate_system, family_name):
                     & selected["_coordinate_bin"].eq(coordinate_bin)
                 )
                 stats = _summary(numeric.loc[cell].to_numpy(float))
+                if coordinate_system == "l_abs_mlat":
+                    latitude = pd.to_numeric(selected[spec["coordinate_column"]], errors="coerce")
+                    valid = cell & np.isfinite(numeric)
+                    stats.update(
+                        n_north=int((valid & latitude.gt(0)).sum()),
+                        n_south=int((valid & latitude.lt(0)).sum()),
+                        n_equator=int((valid & latitude.eq(0)).sum()),
+                    )
                 rows.append({
                     "phase_mode": phase_mode,
                     "coordinate_system": coordinate_system,
@@ -389,6 +408,28 @@ def _configure_polar_axis(ax, l_edges):
     )
 
 
+def _coordinate_title(coordinate_system):
+    return {
+        "l_mlat": "L-MLAT (18-06 MLT)",
+        "l_abs_mlat": "L-|MLAT| (18-06 MLT; hemispheres pooled)",
+        "l_mlt": "L-MLT",
+    }[coordinate_system]
+
+
+def _meridional_ylabel(coordinate_system):
+    if coordinate_system == "l_abs_mlat":
+        return r"Magnetic-axis distance $|z|$ [$R_{\mathrm{E}}$]"
+    return r"Northward distance [$R_{\mathrm{E}}$]"
+
+
+def _add_meridional_grid(ax, l_edges, coordinate_edges, coordinate_system):
+    occurrence.add_meridional_grid(ax, l_edges, coordinate_edges)
+    if coordinate_system == "l_abs_mlat":
+        for label in ax.texts:
+            if label.get_text().endswith("°"):
+                label.set_text(label.get_text().lstrip("+"))
+
+
 def plot_statistics(
     table, phase_mode, coordinate_system, family_name, color_limits,
     date_label, output_base, show=False,
@@ -410,7 +451,7 @@ def plot_statistics(
         subplot_kw=subplot_kw,
     )
     cmap = _cmap(family_name)
-    if coordinate_system == "l_mlat":
+    if coordinate_system in ("l_mlat", "l_abs_mlat"):
         x_edge, z_edge = occurrence._dipole_mesh(l_edges, coordinate_edges)
         x_limit = float(np.nanmax(x_edge)) * 1.04
         z_limit = float(np.nanmax(np.abs(z_edge))) * 1.06
@@ -422,15 +463,15 @@ def plot_statistics(
             table, component, l_edges, coordinate_edges
         )
         norm = Normalize(*color_limits[component])
-        if coordinate_system == "l_mlat":
+        if coordinate_system in ("l_mlat", "l_abs_mlat"):
             mesh = ax.pcolormesh(
                 x_edge, z_edge, plotted.T, cmap=cmap, norm=norm, shading="flat"
             )
-            occurrence.add_meridional_grid(ax, l_edges, coordinate_edges)
+            _add_meridional_grid(ax, l_edges, coordinate_edges, coordinate_system)
             occurrence.add_meridional_earth(ax)
             ax.set_aspect("equal", adjustable="box")
             ax.set_xlim(-1.15, x_limit)
-            ax.set_ylim(-z_limit, z_limit)
+            ax.set_ylim(-1.15 if coordinate_system == "l_abs_mlat" else -z_limit, z_limit)
             ax.axhline(0, color="black", linewidth=0.7, alpha=0.5)
             ax.set_xlabel(r"Nightside distance [$R_{\mathrm{E}}$]")
         else:
@@ -445,10 +486,10 @@ def plot_statistics(
             pad=0.12 if coordinate_system == "l_mlt" else 0.025,
             extend=_colorbar_extend(family_name, component),
         )
-    if coordinate_system == "l_mlat":
-        axes[0].set_ylabel(r"Northward distance [$R_{\mathrm{E}}$]")
+    if coordinate_system in ("l_mlat", "l_abs_mlat"):
+        axes[0].set_ylabel(_meridional_ylabel(coordinate_system))
     family_title = FAMILIES[family_name]["title"]
-    coordinate_title = "L-MLAT (18-06 MLT)" if coordinate_system == "l_mlat" else "L-MLT"
+    coordinate_title = _coordinate_title(coordinate_system)
     fig.suptitle(
         f"Arase {family_title} statistics in {coordinate_title}: "
         f"{PHASES[phase_mode]}\n{date_label}"
@@ -485,7 +526,7 @@ def plot_combined_statistics(
         2, 3, figsize=figure_size, dpi=PLOT_CONFIG["dpi"],
         subplot_kw=subplot_kw,
     )
-    if coordinate_system == "l_mlat":
+    if coordinate_system in ("l_mlat", "l_abs_mlat"):
         x_edge, z_edge = occurrence._dipole_mesh(l_edges, coordinate_edges)
         x_limit = float(np.nanmax(x_edge)) * 1.04
         z_limit = float(np.nanmax(np.abs(z_edge))) * 1.06
@@ -502,16 +543,16 @@ def plot_combined_statistics(
                 table, component, l_edges, coordinate_edges
             )
             norm = Normalize(*color_limits[family_name][component])
-            if coordinate_system == "l_mlat":
+            if coordinate_system in ("l_mlat", "l_abs_mlat"):
                 mesh = ax.pcolormesh(
                     x_edge, z_edge, plotted.T, cmap=cmap, norm=norm,
                     shading="flat",
                 )
-                occurrence.add_meridional_grid(ax, l_edges, coordinate_edges)
+                _add_meridional_grid(ax, l_edges, coordinate_edges, coordinate_system)
                 occurrence.add_meridional_earth(ax)
                 ax.set_aspect("equal", adjustable="box")
                 ax.set_xlim(-1.15, x_limit)
-                ax.set_ylim(-z_limit, z_limit)
+                ax.set_ylim(-1.15 if coordinate_system == "l_abs_mlat" else -z_limit, z_limit)
                 ax.axhline(0, color="black", linewidth=0.7, alpha=0.5)
                 ax.set_xlabel(r"Nightside distance [$R_{\mathrm{E}}$]")
             else:
@@ -534,11 +575,11 @@ def plot_combined_statistics(
                 extend=_colorbar_extend(family_name, component),
             )
             panel_index += 1
-    if coordinate_system == "l_mlat":
-        axes[0, 0].set_ylabel(r"Northward distance [$R_{\mathrm{E}}$]")
-        axes[1, 0].set_ylabel(r"Northward distance [$R_{\mathrm{E}}$]")
+    if coordinate_system in ("l_mlat", "l_abs_mlat"):
+        axes[0, 0].set_ylabel(_meridional_ylabel(coordinate_system))
+        axes[1, 0].set_ylabel(_meridional_ylabel(coordinate_system))
     coordinate_title = (
-        "L-MLAT (18-06 MLT)" if coordinate_system == "l_mlat" else "L-MLT"
+        _coordinate_title(coordinate_system)
     )
     fig.suptitle(
         f"Arase $X_0$ and $\\kappa$ statistics in {coordinate_title}: "
@@ -555,8 +596,25 @@ def plot_combined_statistics(
     return paths
 
 
+def positive_bin_count(value):
+    count = int(value)
+    if count < 1:
+        raise argparse.ArgumentTypeError("--min-bin-count must be at least 1")
+    return count
+
+
+def add_bin_count_argument(parser):
+    parser.add_argument(
+        "--min-bin-count", type=positive_bin_count, default=PLOT_CONFIG["min_bin_count"],
+        help="Minimum finite range count per spatial bin to color (default: 5); CSV retains all bins.",
+    )
+
+
 def build_parser():
     parser = argparse.ArgumentParser(description=__doc__)
+    add_output_arguments(parser)
+    add_selection_argument(parser)
+    add_bin_count_argument(parser)
     parser.add_argument("--ranges", type=Path, default=batch.DEFAULT_RANGES)
     parser.add_argument("--state-dir", type=Path)
     parser.add_argument("--master", type=Path)
@@ -569,8 +627,9 @@ def build_parser():
     return parser
 
 
-def main():
-    args = build_parser().parse_args()
+def main(argv=None):
+    args = build_parser().parse_args(argv)
+    PLOT_CONFIG["min_bin_count"] = args.min_bin_count
     payload, ranges = batch.load_ranges(args.ranges)
     ranges_hash = batch.file_sha256(args.ranges)
     key, master_path, output_dir = resolve_paths(args, ranges_hash)
@@ -578,8 +637,11 @@ def main():
         raise FileNotFoundError(f"Master CSV not found: {master_path}")
     start, end = occurrence.manifest_time_window(payload, ranges)
     last_day = end - pd.Timedelta(1, unit="ns")
-    date_label = f"{start:%Y-%m-%d} to {last_day:%Y-%m-%d}"
+    date_label = (f"{start:%Y-%m-%d} to {last_day:%Y-%m-%d}; "
+                  f"occupied 10 s blocks >= {args.min_occupied_blocks}; "
+                  f"bin n >= {args.min_bin_count}")
     master = pd.read_csv(master_path)
+    master = select_events(master, args.min_occupied_blocks)
     phases = list(dict.fromkeys(args.phase or PHASES))
 
     aggregated = {}
@@ -606,6 +668,8 @@ def main():
             f"{start:%Y%m%d}_{last_day:%Y%m%d}"
         )
         csv_path = output_dir / f"{stem}.csv"
+        if not should_write(output_dir / stem, overwrite=not args.skip_existing):
+            continue
         csv_path.parent.mkdir(parents=True, exist_ok=True)
         table.to_csv(csv_path, index=False)
         written.append(csv_path)
@@ -634,6 +698,9 @@ def main():
                 ]
                 for family_name in FAMILIES
             }
+            if not should_write(output_dir / stem, overwrite=not args.skip_existing,
+                                extensions=(".png", ".pdf")):
+                continue
             written.extend(plot_combined_statistics(
                 phase_frames[phase_mode], tables, phase_mode, coordinate_system,
                 color_limits, date_label, output_dir / stem, show=args.show,

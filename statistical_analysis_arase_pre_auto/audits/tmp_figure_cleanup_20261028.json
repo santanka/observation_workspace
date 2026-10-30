@@ -1,0 +1,1166 @@
+{
+  "created_utc": "2026-10-28T04:38:59.265940+00:00",
+  "status": "complete",
+  "scope": "Explicit Arase previews and LEPe validation figures created for Codex checks; excludes live workers, caches, application assets",
+  "figures": [
+    {
+      "path": "/tmp/ae_statistics_preview.png",
+      "bytes": 276481,
+      "sha256": "c7a124cee1077e59edbc71dc6b20dc993c49d3bb3cc31e707f042aa4f7698a23"
+    },
+    {
+      "path": "/tmp/arase_172604470.jpg",
+      "bytes": 69291,
+      "sha256": "712d07207601804a8b2d461b8885b4a404c20f13becc72914844a4fda2f87284"
+    },
+    {
+      "path": "/tmp/arase_172703844.jpg",
+      "bytes": 68482,
+      "sha256": "132f6d0370b8b00e3253904b975931c8c00d37339237a343a16e5bb1fb88b982"
+    },
+    {
+      "path": "/tmp/arase_172827000.jpg",
+      "bytes": 69097,
+      "sha256": "330a1169a54115e5427611cb7e89ee7141da0cc19cd7dfce83d6083545f37215"
+    },
+    {
+      "path": "/tmp/arase_173004406.jpg",
+      "bytes": 68504,
+      "sha256": "761a337c52b0e1b8dec82154d33d271d79c3ff6f1319ee1a4731ce89b344b6db"
+    },
+    {
+      "path": "/tmp/arase_173130875.jpg",
+      "bytes": 69987,
+      "sha256": "dcbd6ca0d08ea6ea9f202426ef3f4f138c1e0e535fc28ad821d652fb801bc0b0"
+    },
+    {
+      "path": "/tmp/arase_173353859.jpg",
+      "bytes": 69391,
+      "sha256": "1f6583deda893259297e3b6f39efc80fa2b4139e8993008e19a24d429c8b256e"
+    },
+    {
+      "path": "/tmp/arase_173829468.jpg",
+      "bytes": 69089,
+      "sha256": "1f7452cde1bcbf27541ca0db5b8e23b8c6f23394e246be41a65ea718e469be72"
+    },
+    {
+      "path": "/tmp/arase_combined_l_mlat.png",
+      "bytes": 1618820,
+      "sha256": "78819684ee5aae843541de8dd94f69839d6e57ba374cdb8bbbe4cd431848cfe9"
+    },
+    {
+      "path": "/tmp/arase_combined_l_mlt.png",
+      "bytes": 1309845,
+      "sha256": "88716d3dfc61d93016b1250bd74e6a066581dba35d298a8b342e253de6d44eb4"
+    },
+    {
+      "path": "/tmp/arase_kappa_x0_preview.jpg",
+      "bytes": 237143,
+      "sha256": "becec60edf896a1d831493a858dd65038689fc94b5e0062a945193526b717a52"
+    },
+    {
+      "path": "/tmp/arase_occurrence_grid_preview.jpg",
+      "bytes": 168128,
+      "sha256": "c611771f696a2a0c5622b7f86382aa2ef8498fcd4ac19c9ab404684c12100264"
+    },
+    {
+      "path": "/tmp/arase_occurrence_log_preview.jpg",
+      "bytes": 119440,
+      "sha256": "e1e3379bc134783d82221499651a0c85e91d067a88145a525fa2a4afc6f3cac9"
+    },
+    {
+      "path": "/tmp/arase_occurrence_log_validation/arase_kaw_occurrence_l_mlat_all_20220901_20220930.pdf",
+      "bytes": 66425,
+      "sha256": "eea35735f422fb80be0893e4e16592c88727468474d4f375682bc902670c44c1"
+    },
+    {
+      "path": "/tmp/arase_occurrence_log_validation/arase_kaw_occurrence_l_mlat_all_20220901_20220930.png",
+      "bytes": 726195,
+      "sha256": "bf0794e8793500aa6d27fe55aa979b37689fb8026083f81af0f7065d1cba900d"
+    },
+    {
+      "path": "/tmp/arase_occurrence_log_validation/arase_kaw_occurrence_l_mlat_north_traveling_20220901_20220930.pdf",
+      "bytes": 66417,
+      "sha256": "2c94a3c891b2e08ff91cee3dc5defd349b7b4bd95bd77d87206c6dde628a87da"
+    },
+    {
+      "path": "/tmp/arase_occurrence_log_validation/arase_kaw_occurrence_l_mlat_north_traveling_20220901_20220930.png",
+      "bytes": 731769,
+      "sha256": "2fdb226cfc38bc273887743be7984c09b79b6e036334f28c15f41fe27b47f9ee"
+    },
+    {
+      "path": "/tmp/arase_occurrence_log_validation/arase_kaw_occurrence_l_mlat_south_traveling_20220901_20220930.pdf",
+      "bytes": 66857,
+      "sha256": "41721b58bb8b074483f767ca3010415397427068667eab6aa77b2d69b61b8c34"
+    },
+    {
+      "path": "/tmp/arase_occurrence_log_validation/arase_kaw_occurrence_l_mlat_south_traveling_20220901_20220930.png",
+      "bytes": 732828,
+      "sha256": "0ea6e18297f85d78643dfba18b4d007b34d8e32f9110c015cedea53e4c233414"
+    },
+    {
+      "path": "/tmp/arase_occurrence_log_validation/arase_kaw_occurrence_l_mlat_standing_20220901_20220930.pdf",
+      "bytes": 66854,
+      "sha256": "c5f66b2f3d2380f3809d601f1de7112b2c1e285a5d83058bda792bc196eb8cf3"
+    },
+    {
+      "path": "/tmp/arase_occurrence_log_validation/arase_kaw_occurrence_l_mlat_standing_20220901_20220930.png",
+      "bytes": 726096,
+      "sha256": "873c5812455fac5f754721a746bbced9e03d7e5a3da19859918a195c06ce216b"
+    },
+    {
+      "path": "/tmp/arase_occurrence_log_validation/arase_kaw_occurrence_l_mlt_all_20220901_20220930.pdf",
+      "bytes": 49278,
+      "sha256": "e71775d136b76e86183d48ad426987666f42f0aae199247b6335389757e944f1"
+    },
+    {
+      "path": "/tmp/arase_occurrence_log_validation/arase_kaw_occurrence_l_mlt_all_20220901_20220930.png",
+      "bytes": 747280,
+      "sha256": "fd07c66054f54935043bbe555472d3e664e2187cd6c8e0baa284f0132d23c7f7"
+    },
+    {
+      "path": "/tmp/arase_occurrence_log_validation/arase_kaw_occurrence_l_mlt_north_traveling_20220901_20220930.pdf",
+      "bytes": 49759,
+      "sha256": "1bd9c4f0bcc67f46393b842bdebbebca1a4aeef16b5314e1cb71d80041b70297"
+    },
+    {
+      "path": "/tmp/arase_occurrence_log_validation/arase_kaw_occurrence_l_mlt_north_traveling_20220901_20220930.png",
+      "bytes": 751141,
+      "sha256": "da875eeb97a3c548a4c53e50ea2720673c0ecdb29d03f55e6b38f3b516a473ab"
+    },
+    {
+      "path": "/tmp/arase_occurrence_log_validation/arase_kaw_occurrence_l_mlt_south_traveling_20220901_20220930.pdf",
+      "bytes": 50036,
+      "sha256": "8340cb37fc2fd7a0b72247b7590cd307524036989309b0d3729c238cf64a8543"
+    },
+    {
+      "path": "/tmp/arase_occurrence_log_validation/arase_kaw_occurrence_l_mlt_south_traveling_20220901_20220930.png",
+      "bytes": 752342,
+      "sha256": "fa568aa30158da53e1bba2b2e88b4d14350edd9772e9dce331f52ddaa26adf43"
+    },
+    {
+      "path": "/tmp/arase_occurrence_log_validation/arase_kaw_occurrence_l_mlt_standing_20220901_20220930.pdf",
+      "bytes": 50002,
+      "sha256": "568fd0595c05192e7b9a336547bfe4651ee802a0aa6a835795aa4880371eb5de"
+    },
+    {
+      "path": "/tmp/arase_occurrence_log_validation/arase_kaw_occurrence_l_mlt_standing_20220901_20220930.png",
+      "bytes": 743557,
+      "sha256": "dc07cf515cb9303fc11d0c7475d8eb85d5463e44f398bbfb7beb3f3214058e05"
+    },
+    {
+      "path": "/tmp/arase_occurrence_nightside_preview.jpg",
+      "bytes": 115522,
+      "sha256": "850950c232b57c0c929d95fc3195fc8cd32b5c013038a036efdb2ca7aa650802"
+    },
+    {
+      "path": "/tmp/arase_occurrence_preview.jpg",
+      "bytes": 116890,
+      "sha256": "6b506175edc4a7c138f453f11665250937732144dd31d9e094ec774a889a10e1"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_171908_627353.png",
+      "bytes": 91919,
+      "sha256": "db6348dad2a210f0ff6f573ec3f145f08e98c00c8e9cfc55e047dc93724de8e8"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_172604_470039.png",
+      "bytes": 93593,
+      "sha256": "1f3ec31dfcbbd7db5b593d737b171b3f6fc6d7f87e8d0d5e2fb1d9a6a19ba934"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_172604_641913.png",
+      "bytes": 94824,
+      "sha256": "d7e2f0a8a4d1fa4c0c4f5391bdb8a7bf13154784c419d1716a47d152fb7b84ba"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_172605_001287.png",
+      "bytes": 96264,
+      "sha256": "bb3963be0d015ec87534316ddcda17566f35dd260455d16b74424cd2ee6a0bda"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_172703_798012.png",
+      "bytes": 91067,
+      "sha256": "b8c6fd8ce51f88c32f566205ec0231c1eae1677cfb99ea53408dd941006d4f12"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_172703_844887.png",
+      "bytes": 91622,
+      "sha256": "68c3dbf7b09b3d24191182b6421f1e7764520c1ed0fdf3e5f2e5167f7e59edaa"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_172827_000924.png",
+      "bytes": 94690,
+      "sha256": "8536829ff77fac021092390fe1f9f6e893adb931abe59a26bc091b7a7059d707"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_172835_329028.png",
+      "bytes": 92366,
+      "sha256": "f8fdf7b4c765f693a153e8daf3d32af80e62ec3e5d1723e220db4a7fb525af75"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_172835_469652.png",
+      "bytes": 91940,
+      "sha256": "dec295591af8158c9f07523b585857e6b6f885d41a87ef4456ef225d1023f7f5"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_172835_797776.png",
+      "bytes": 90289,
+      "sha256": "673e2cfa3ce4bfe4a27496fc73846e11cae56f85a1be8ab859806772c559bde8"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_172835_829026.png",
+      "bytes": 92467,
+      "sha256": "babd183e9d0bc10a67a21f8cc203d9ee53f8555d552719b1051f25b21c4284c4"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_172901_297711.png",
+      "bytes": 91814,
+      "sha256": "6a4735bf8e9378d462e88909a4064b0b79fe9f9a5b31c7f3da73cac68fbd9d49"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_172901_953959.png",
+      "bytes": 88368,
+      "sha256": "2f459ca46bbf7f802e0a5a5a889388387bcc10428ff8dbd9b2d49d5f064e2afd"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_172902_563333.png",
+      "bytes": 91854,
+      "sha256": "0be4a791a77f87a4c57d7da5084afc42f362093aedf65ec00d234aa0f3de54c0"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_172902_594583.png",
+      "bytes": 90917,
+      "sha256": "3e9c4a4fa973bc78c497fb1a42ffec6e9e9e21353325adc33b9fd6ce13d9daa6"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_172903_047707.png",
+      "bytes": 88943,
+      "sha256": "20ab56f56a4871469bbfb73ac641e2c5601f2dbe1c1882aedbe6d82f1d3dca75"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_172913_719554.png",
+      "bytes": 92328,
+      "sha256": "8eb88b6870313cc099f9d87f7081befd4db3dbace1a5d1c2ff1c18682ea33d23"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_172914_969551.png",
+      "bytes": 93603,
+      "sha256": "020d7b94fabc0c7c7d264e1b692a13e61845f8b98e6821b711bea134dc05fabf"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_172915_375800.png",
+      "bytes": 94031,
+      "sha256": "969a6a33b9639517bf5090d21bbfc2e6c3f27776e1624257aefdb7b8949fff09"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_172916_969546.png",
+      "bytes": 92719,
+      "sha256": "9b43d49f4fbb19a8e3936c4363ea9869467ab8bc38de370740d490ac49d84b7d"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_172918_141418.png",
+      "bytes": 91610,
+      "sha256": "de0a1f81bcaac09a71f38e73d2a8a2c52f875917ebd387d3884afdaa8b794a9c"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_172918_157043.png",
+      "bytes": 92588,
+      "sha256": "d669028ef781e362c8320e96829af6fb00d0d06533dd67fe412e0c47342896fd"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_172918_438292.png",
+      "bytes": 91978,
+      "sha256": "7ce37f58e81c653e0d985634d8c9da697f4af10dc5a21c01953cb87200b1df7a"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_172918_750791.png",
+      "bytes": 92259,
+      "sha256": "5f5e65373e85ba9f801e8d9a6cca426b2a76f1ebe7030ca80899b4b51f674c9b"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_172918_766416.png",
+      "bytes": 93013,
+      "sha256": "9f499e1ca16d61c8e2e7b43a185493133a5da3d32d20fa6b8e54c3ca6ec78cc2"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_173002_110055.png",
+      "bytes": 94238,
+      "sha256": "6d08c4fbf51ade638daa57896fd59e827b4c25a8333f28674bc417f321e976c6"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_173002_250680.png",
+      "bytes": 93824,
+      "sha256": "42302f98d96b87607cf206375e61f62e59582f9d6919647821e719f652af026d"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_173003_922551.png",
+      "bytes": 94021,
+      "sha256": "d9d3a12dde437ac48dbffaaa16fb877208d504b01404d46e4f04e9c7ed6cac74"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_173004_406925.png",
+      "bytes": 92771,
+      "sha256": "aa43cba18731480321478430b183e770e95a0b3eab12d5ba9b21b05acce8e1b3"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_173006_938168.png",
+      "bytes": 92086,
+      "sha256": "0a575420b6fdbf360ce9336203b07b96f4fd86223dca45db8331f2f0a383df91"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_173051_234930.png",
+      "bytes": 93733,
+      "sha256": "d9087a62ae3d674ffe967f569a428d192e46c623375ff04914f78964ec668784"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_173124_000471.png",
+      "bytes": 94249,
+      "sha256": "9d987c19eac315a82306ca58ce512a39c523b482db914903f61fbf94be33666c"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_173130_875453.png",
+      "bytes": 95842,
+      "sha256": "ece525d95547431bc56f2fef57229219eec2ddc8a33452fb311368b932521207"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_173132_391074.png",
+      "bytes": 93056,
+      "sha256": "49ebce0f595504b2133c2efaea97754057c9c924afb5f0a2ba10ddd93874f5aa"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_173136_672313.png",
+      "bytes": 93603,
+      "sha256": "3958349aaa3a54a5dc23133a390d8585bc160211cb3b653db02f30596dae84df"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_173143_359796.png",
+      "bytes": 94428,
+      "sha256": "48e4c6b67d86ba9abb6a8e0f24142556f5c5049fc589f5907cf6bb6f46eb68a8"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_173143_422296.png",
+      "bytes": 96307,
+      "sha256": "01c54782566e3a33c75020a495b833ff2adda609383006e306df3104e28566b7"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_173144_625418.png",
+      "bytes": 97158,
+      "sha256": "8329b333914f839201237a52558297326a4d01aefc1c0ede22659cc5e00f0e69"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_173347_640728.png",
+      "bytes": 96654,
+      "sha256": "899c653399bf6b5f306a6c3768d5647dd40060c9a6f2116e81f4864ed03cd396"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_173353_453213.png",
+      "bytes": 94943,
+      "sha256": "2eafbe5c7ced9db74f9134cdf58054e0167cf1d2645b351d95ebcf8a6490b198"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_173353_796962.png",
+      "bytes": 94815,
+      "sha256": "abb9468dfe2f1f87a70198a14724fb141ae2f4cc7bee9e39ebf0a43465190556"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_173353_828212.png",
+      "bytes": 95349,
+      "sha256": "0ccdfe21704762d86f9bed54fa127397513ba133b9c790bfdd2ac5e2d06c5b76"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_173353_859462.png",
+      "bytes": 94391,
+      "sha256": "3459e36ee575cd591e0477eea4fec55d934222e437e217188d3b07f3ec814c30"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_173353_968837.png",
+      "bytes": 94713,
+      "sha256": "a9372d711682e47f1543858fbf6932b7a5f61b762ddfc3a33088a09f62e6c53e"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_173354_640710.png",
+      "bytes": 92177,
+      "sha256": "6d4ef0655861ce525ed63bf5dbcd0ed09e7de198ff6765025d569d0298e873b0"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_173540_468564.png",
+      "bytes": 88995,
+      "sha256": "8293daa22d16524b8027ec3eec0efee4895c438c5a7eb88cfd6293dbcf5be9e7"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_173540_906063.png",
+      "bytes": 90126,
+      "sha256": "7d642b4392ca3c0b4f8d4dbb5a03a48cb8b0888ed4b6171514c25ae3b6e123cf"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_173541_077938.png",
+      "bytes": 91086,
+      "sha256": "c1bbadcc2b1af41227cc981c1699fc467e61d56eca474ea967c6a8b10392bfdf"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_173829_405632.png",
+      "bytes": 95006,
+      "sha256": "c9357cc4380fff8769412e93bbef37f88bdd139c5777356418be03b918926c2f"
+    },
+    {
+      "path": "/tmp/arase_panel_d_crops/random_condition_spectrum_toroidal_20220919_173829_468132.png",
+      "bytes": 92723,
+      "sha256": "9c580477fc939aa475edaafe3499ea5df936759f8198307ad6554eac6eb8cc8d"
+    },
+    {
+      "path": "/tmp/arase_panel_d_sheet_1.jpg",
+      "bytes": 231477,
+      "sha256": "045bc470287e33c645f7c21584a891ae64ea8d94500c4ad8415be48cec7d55d0"
+    },
+    {
+      "path": "/tmp/arase_panel_d_sheet_1_small.jpg",
+      "bytes": 83747,
+      "sha256": "a09c8f8ae85a6eb38361a33fc637c77f9fd46896237bd28c5be08a014a5357b9"
+    },
+    {
+      "path": "/tmp/arase_panel_d_sheet_2.jpg",
+      "bytes": 228910,
+      "sha256": "48ac2dc48ac1866575fc4c66cf9b9f13998350217692f32f636d51b6abfd9f36"
+    },
+    {
+      "path": "/tmp/arase_panel_d_sheet_2_small.jpg",
+      "bytes": 83403,
+      "sha256": "de5c5b4451df1b196db9a76d1f8fda40f355c1e32feb072a9e3135a763ebc3bd"
+    },
+    {
+      "path": "/tmp/arase_panel_d_sheet_3.jpg",
+      "bytes": 231770,
+      "sha256": "d565932aa35296235334bb9afab1307fbe5440bc666a5b6c2a5c20533fe6ccdc"
+    },
+    {
+      "path": "/tmp/arase_panel_d_sheet_3_small.jpg",
+      "bytes": 84737,
+      "sha256": "ad023af6492572f8311483c8f9e60fd15211130c8ee02627ef9e1ddb0487b620"
+    },
+    {
+      "path": "/tmp/arase_panel_d_sheet_4.jpg",
+      "bytes": 235504,
+      "sha256": "a83b93873111dd9ca6c2b83d2e76a190d8df8b538d321036e1e9234df5ea37e2"
+    },
+    {
+      "path": "/tmp/arase_panel_d_sheet_4_small.jpg",
+      "bytes": 85681,
+      "sha256": "4d99820f2db1c47fc26e6a8c2b8c8f7454877137fa67ba865772ae22ad2ae2f7"
+    },
+    {
+      "path": "/tmp/arase_panel_d_sheet_5.jpg",
+      "bytes": 231152,
+      "sha256": "c22c7b85785b28b50bed5ef216c24ba16f6ae0492315928e00cf558067124414"
+    },
+    {
+      "path": "/tmp/arase_panel_d_sheet_5_small.jpg",
+      "bytes": 83780,
+      "sha256": "c1307bf94a07e201aa69f5f3a58cd36076d19012bd53f7363712c405518525b7"
+    },
+    {
+      "path": "/tmp/arase_sample.png",
+      "bytes": 658063,
+      "sha256": "dd3dd50e542a94c697a81919ff95032e5a18bd3c94e113183da19d4fec5999c3"
+    },
+    {
+      "path": "/tmp/arase_sample_small.jpg",
+      "bytes": 39243,
+      "sha256": "85e2324716ce28570ab5ebf16be94d45fee82440185458cec1f5416755529fbe"
+    },
+    {
+      "path": "/tmp/arase_statistics_grid_preview_20261028/ne_statistics/arase_ne_parameter_statistics_all_20200101_20221231.pdf",
+      "bytes": 123351,
+      "sha256": "36be0ec369c37b749f9ef20b39f95f49a8eab6b0084d43b8d88ed74d0ab8bf87"
+    },
+    {
+      "path": "/tmp/arase_statistics_grid_preview_20261028/ne_statistics/arase_ne_parameter_statistics_all_20200101_20221231.png",
+      "bytes": 1620423,
+      "sha256": "894156037535a1eebb0bd90900803e429e6bcecfa19243b0a73794d8a037d547"
+    },
+    {
+      "path": "/tmp/arase_x0_kappa_fit_trial_20261028/x0_kappa_fits/arase_x0_kappa_fits_all_20200101_20221231.pdf",
+      "bytes": 157946,
+      "sha256": "75baebdec9faddc9c9216e2aa71704e593c591d03f8d6040a9e08493245cdc67"
+    },
+    {
+      "path": "/tmp/arase_x0_kappa_fit_trial_20261028/x0_kappa_fits/arase_x0_kappa_fits_all_20200101_20221231.pivot.pdf",
+      "bytes": 158204,
+      "sha256": "3a1fcb3176c63276cc8919749887945c32edb760471e2a8ddbab73dd1a091a29"
+    },
+    {
+      "path": "/tmp/arase_x0_kappa_fit_trial_20261028/x0_kappa_fits/arase_x0_kappa_fits_all_20200101_20221231.pivot.png",
+      "bytes": 1073913,
+      "sha256": "36f6b5ae5b3058e0dbc7b901af5b2815b7fca08409e6ed791fe441c419ff32ff"
+    },
+    {
+      "path": "/tmp/arase_x0_kappa_fit_trial_20261028/x0_kappa_fits/arase_x0_kappa_fits_all_20200101_20221231.png",
+      "bytes": 1138751,
+      "sha256": "fc458366afea3f4a617e227b67ac88273cc787dae61105b569e80da312ef97a4"
+    },
+    {
+      "path": "/tmp/arase_x0_kappa_fit_trial_20261028/x0_kappa_fits/arase_x0_kappa_fits_standing_20200101_20221231.pdf",
+      "bytes": 158141,
+      "sha256": "8259b4092bcfa2cce6b604e99f8451002a48b40895deb468120e86a1e8a3e9d5"
+    },
+    {
+      "path": "/tmp/arase_x0_kappa_fit_trial_20261028/x0_kappa_fits/arase_x0_kappa_fits_standing_20200101_20221231.pivot.pdf",
+      "bytes": 158139,
+      "sha256": "17f0d86b7b6fa3d018c43347ba19457f7140ea69ee9d47bf22ed548cb6f7b5cf"
+    },
+    {
+      "path": "/tmp/arase_x0_kappa_fit_trial_20261028/x0_kappa_fits/arase_x0_kappa_fits_standing_20200101_20221231.pivot.png",
+      "bytes": 994110,
+      "sha256": "57fc2058b349451dad69709c696a6eb72e8cde344767d126c765e88ae3c93470"
+    },
+    {
+      "path": "/tmp/arase_x0_kappa_fit_trial_20261028/x0_kappa_fits/arase_x0_kappa_fits_standing_20200101_20221231.png",
+      "bytes": 1076456,
+      "sha256": "fdbca54493a95f3b1ae31b19f40f1d38066e0094228bb4bf699c3cf8b1a5e22f"
+    },
+    {
+      "path": "/tmp/arase_x0_kappa_fit_trial_20261028/x0_kappa_fits/arase_x0_kappa_fits_toward_ionosphere_20200101_20221231.pdf",
+      "bytes": 154929,
+      "sha256": "f932f9240bf9f6e6455ff149955b4319b168f1711b4c6ac16eeb96fec8e9a7e8"
+    },
+    {
+      "path": "/tmp/arase_x0_kappa_fit_trial_20261028/x0_kappa_fits/arase_x0_kappa_fits_toward_ionosphere_20200101_20221231.pivot.pdf",
+      "bytes": 154099,
+      "sha256": "08dbe5e06367c9d6e86fd39c526ee249f2a1aa0d00b98a78ed69087eeb7d80cc"
+    },
+    {
+      "path": "/tmp/arase_x0_kappa_fit_trial_20261028/x0_kappa_fits/arase_x0_kappa_fits_toward_ionosphere_20200101_20221231.pivot.png",
+      "bytes": 961513,
+      "sha256": "4ca5085e42b50fe6377322198d3d5bb8fd777f9af6c095bfb1f883d24e1cc200"
+    },
+    {
+      "path": "/tmp/arase_x0_kappa_fit_trial_20261028/x0_kappa_fits/arase_x0_kappa_fits_toward_ionosphere_20200101_20221231.png",
+      "bytes": 1017561,
+      "sha256": "96a50199af8bf9b026cdc4e90091e74ffce833beda5a618a8bfb70647c8f2b34"
+    },
+    {
+      "path": "/tmp/arase_x0_kappa_fit_trial_20261028/x0_kappa_fits/arase_x0_kappa_fits_toward_magnetic_equator_20200101_20221231.pdf",
+      "bytes": 153569,
+      "sha256": "5c040432667e529aacd2176af6f496fbe880e1687893542c245c3ebd423c18f0"
+    },
+    {
+      "path": "/tmp/arase_x0_kappa_fit_trial_20261028/x0_kappa_fits/arase_x0_kappa_fits_toward_magnetic_equator_20200101_20221231.pivot.pdf",
+      "bytes": 153247,
+      "sha256": "4aa2401ce7855df7e6e71db45e3a71092bda92990b9c53aec01fcbb756fb8a02"
+    },
+    {
+      "path": "/tmp/arase_x0_kappa_fit_trial_20261028/x0_kappa_fits/arase_x0_kappa_fits_toward_magnetic_equator_20200101_20221231.pivot.png",
+      "bytes": 977436,
+      "sha256": "7e4d1f71fc7572bc59c857a700a9676e3155105af8d3c0d632bd945f97c89fe6"
+    },
+    {
+      "path": "/tmp/arase_x0_kappa_fit_trial_20261028/x0_kappa_fits/arase_x0_kappa_fits_toward_magnetic_equator_20200101_20221231.png",
+      "bytes": 1054224,
+      "sha256": "e754b991b24cf12def72a5ff4a96de9e564efdf6973739f67387080c06492a25"
+    },
+    {
+      "path": "/tmp/arase_x0_kappa_preview_20261028/x0_kappa_relationship/arase_x0_kappa_relationship_all_20200101_20221231.pdf",
+      "bytes": 72382,
+      "sha256": "675376671284d18d57bdc80a929e48ad7c9ecf7615c1354b6ec0cdb342758719"
+    },
+    {
+      "path": "/tmp/arase_x0_kappa_preview_20261028/x0_kappa_relationship/arase_x0_kappa_relationship_all_20200101_20221231.png",
+      "bytes": 805019,
+      "sha256": "ff2607fa9c8fac89c7d640ad5d8ddae076802e912a0b90e0ab6cd06eb248b36d"
+    },
+    {
+      "path": "/tmp/lepe_density_hfa_v1_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0347-0353/lepe_temperature_comparison/density_hfa_v1/density_comparison.pdf",
+      "bytes": 38778,
+      "sha256": "14d8b3c25e0b9585ac9bc02c26bd790c200d0c89b716edcd702a236aea22abe7"
+    },
+    {
+      "path": "/tmp/lepe_density_hfa_v1_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0347-0353/lepe_temperature_comparison/density_hfa_v1/density_comparison.png",
+      "bytes": 305306,
+      "sha256": "1e98af6edc1792c4f71e5a2164e57c84b6a718bed81a9bc54346f2480cc20ea3"
+    },
+    {
+      "path": "/tmp/lepe_density_hfa_v1_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0558-0610/lepe_temperature_comparison/density_hfa_v1/density_comparison.pdf",
+      "bytes": 38974,
+      "sha256": "ae47e64faae492e67ea8c5961d9baeaa3061bf1744780edc71e1ff71a8d806db"
+    },
+    {
+      "path": "/tmp/lepe_density_hfa_v1_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0558-0610/lepe_temperature_comparison/density_hfa_v1/density_comparison.png",
+      "bytes": 275000,
+      "sha256": "cd648dba7d8428331a8585340a4d5c55dd1426006e7a95652dd38cb517120105"
+    },
+    {
+      "path": "/tmp/lepe_density_hfa_v1_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0641-0648/lepe_temperature_comparison/density_hfa_v1/density_comparison.pdf",
+      "bytes": 37810,
+      "sha256": "4e6549040b7e4f64576f2a3333146e1ac063962b34fedb9b72c6737a13d05993"
+    },
+    {
+      "path": "/tmp/lepe_density_hfa_v1_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0641-0648/lepe_temperature_comparison/density_hfa_v1/density_comparison.png",
+      "bytes": 284328,
+      "sha256": "c1ed47aa26339e7478d2226dd254cf5303a3b36c4338f3675e3ac3209ea75616"
+    },
+    {
+      "path": "/tmp/lepe_density_hfa_v1_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0721-0731/lepe_temperature_comparison/density_hfa_v1/density_comparison.pdf",
+      "bytes": 39081,
+      "sha256": "e188faf6ef132c03475870e230fbf484614dffa3177081164a456d8eeafccdb9"
+    },
+    {
+      "path": "/tmp/lepe_density_hfa_v1_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0721-0731/lepe_temperature_comparison/density_hfa_v1/density_comparison.png",
+      "bytes": 331873,
+      "sha256": "1bbeb1794059099a02d82ec5198829d15a52265e0f54278d5db495846ae295a2"
+    },
+    {
+      "path": "/tmp/lepe_density_hfa_v1_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0731-0749/lepe_temperature_comparison/density_hfa_v1/density_comparison.pdf",
+      "bytes": 42670,
+      "sha256": "af38fb628c0d50f1f6a4c4bcef5f862a8a4948ab8e5acb1176846a5fa98886da"
+    },
+    {
+      "path": "/tmp/lepe_density_hfa_v1_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0731-0749/lepe_temperature_comparison/density_hfa_v1/density_comparison.png",
+      "bytes": 343046,
+      "sha256": "0e290a71b721bb68f3940ddc150269d46a2d61bbdb18e0d92e088551256189fd"
+    },
+    {
+      "path": "/tmp/lepe_density_hfa_v1_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2226-2243/lepe_temperature_comparison/density_hfa_v1/density_comparison.pdf",
+      "bytes": 45110,
+      "sha256": "788f054f605bbeffbdba291b9b9dea61a067d0d4651bff982906d8846ea1fdd4"
+    },
+    {
+      "path": "/tmp/lepe_density_hfa_v1_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2226-2243/lepe_temperature_comparison/density_hfa_v1/density_comparison.png",
+      "bytes": 396666,
+      "sha256": "2092925cf965dc308d29b46edb6ac11919750f5f6f9fba6c5dfcd29241666d97"
+    },
+    {
+      "path": "/tmp/lepe_density_hfa_v1_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2243-2259/lepe_temperature_comparison/density_hfa_v1/density_comparison.pdf",
+      "bytes": 44285,
+      "sha256": "24738edf6779e0a4d7b1b329a023a9d529d5fe6adb72494d3616c82f28c69b52"
+    },
+    {
+      "path": "/tmp/lepe_density_hfa_v1_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2243-2259/lepe_temperature_comparison/density_hfa_v1/density_comparison.png",
+      "bytes": 410252,
+      "sha256": "9fdc0b9adc87e59edf50ecdefa0dd8cdba7070e9c9ef4111db9bbc3aad1056cf"
+    },
+    {
+      "path": "/tmp/lepe_density_hfa_v1_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2307-2316/lepe_temperature_comparison/density_hfa_v1/density_comparison.pdf",
+      "bytes": 41946,
+      "sha256": "edc55c39adc416c5136919fc19935d0199804a2c79a24bba14ae07b1203ccaaf"
+    },
+    {
+      "path": "/tmp/lepe_density_hfa_v1_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2307-2316/lepe_temperature_comparison/density_hfa_v1/density_comparison.png",
+      "bytes": 372718,
+      "sha256": "1a669463d03ca69c9c9e3e7103a83f0916c2ff46dd1cd43f1e4e4aabdb662473"
+    },
+    {
+      "path": "/tmp/lepe_density_hfa_v1_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2318-2325/lepe_temperature_comparison/density_hfa_v1/density_comparison.pdf",
+      "bytes": 40416,
+      "sha256": "2d626b5dc19f084bedd35cd3745250b286d6b1adfc3b4ec5aafc601296e9670d"
+    },
+    {
+      "path": "/tmp/lepe_density_hfa_v1_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2318-2325/lepe_temperature_comparison/density_hfa_v1/density_comparison.png",
+      "bytes": 292133,
+      "sha256": "906a042ec6da9b3ec53fc60f3bc524be508fcbd831f05c3b62351d82fb99cf9b"
+    },
+    {
+      "path": "/tmp/lepe_multiband_v3_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0347-0353/lepe_temperature_comparison/pi_multiband_v3/temperature_comparison.pdf",
+      "bytes": 42160,
+      "sha256": "78fdf7d3fb3665a2e17adfd4ddc4818509f56e0bf9d5cf0a937b3823106f0e22"
+    },
+    {
+      "path": "/tmp/lepe_multiband_v3_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0347-0353/lepe_temperature_comparison/pi_multiband_v3/temperature_comparison.png",
+      "bytes": 325809,
+      "sha256": "2ff8a4adafdfa1b7ba0e4ac90e57a830a5e1d1b2fe7eee74dce65b591918fe99"
+    },
+    {
+      "path": "/tmp/lepe_multiband_v3_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0558-0610/lepe_temperature_comparison/pi_multiband_v3/temperature_comparison.pdf",
+      "bytes": 46792,
+      "sha256": "65bada523ef116bb137e97a16c8ab85c6915336c5cbf1ae73acc86d44d3fd1f8"
+    },
+    {
+      "path": "/tmp/lepe_multiband_v3_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0558-0610/lepe_temperature_comparison/pi_multiband_v3/temperature_comparison.png",
+      "bytes": 362824,
+      "sha256": "0568ed0da4732486445071b5f9ce64ebc2322a45cb7423dfa0ec427bc7ad2d97"
+    },
+    {
+      "path": "/tmp/lepe_multiband_v3_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0641-0648/lepe_temperature_comparison/pi_multiband_v3/temperature_comparison.pdf",
+      "bytes": 43641,
+      "sha256": "0fa82e18c61a288d1560666a6ab5d663498ca94ef14230bdff929f562b95b926"
+    },
+    {
+      "path": "/tmp/lepe_multiband_v3_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0641-0648/lepe_temperature_comparison/pi_multiband_v3/temperature_comparison.png",
+      "bytes": 373380,
+      "sha256": "2a66346f5590a8b7c5dbc619d672b1722af470b763152afcaa477562609fc517"
+    },
+    {
+      "path": "/tmp/lepe_multiband_v3_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0721-0731/lepe_temperature_comparison/pi_multiband_v3/temperature_comparison.pdf",
+      "bytes": 45369,
+      "sha256": "4016f22595b4585ab94974e0f81f402cc03fc81f43805792f78398be89d778a6"
+    },
+    {
+      "path": "/tmp/lepe_multiband_v3_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0721-0731/lepe_temperature_comparison/pi_multiband_v3/temperature_comparison.png",
+      "bytes": 329361,
+      "sha256": "ba6738bc11855727633877f72d14fc7b04de48e6e011c382339305c83699cac1"
+    },
+    {
+      "path": "/tmp/lepe_multiband_v3_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0731-0749/lepe_temperature_comparison/pi_multiband_v3/temperature_comparison.pdf",
+      "bytes": 51534,
+      "sha256": "dc83529a9466a01025734a1917c244ad094c9032383dbeab231f58c7de639790"
+    },
+    {
+      "path": "/tmp/lepe_multiband_v3_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0731-0749/lepe_temperature_comparison/pi_multiband_v3/temperature_comparison.png",
+      "bytes": 369032,
+      "sha256": "34d7248e64422c1b9eb3986e069b361faf9386f9a5f57325271615a6192595cf"
+    },
+    {
+      "path": "/tmp/lepe_multiband_v3_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2226-2243/lepe_temperature_comparison/pi_multiband_v3/temperature_comparison.pdf",
+      "bytes": 59209,
+      "sha256": "2bf2588fd10350758f3ed1c791b700f74d2c341425167c12a32213796dc9f87c"
+    },
+    {
+      "path": "/tmp/lepe_multiband_v3_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2226-2243/lepe_temperature_comparison/pi_multiband_v3/temperature_comparison.png",
+      "bytes": 423685,
+      "sha256": "3bce3ff3af1e5a3d9867b119e8bce766cb8bda8a099ee4e63bad2124c15d89d3"
+    },
+    {
+      "path": "/tmp/lepe_multiband_v3_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2243-2259/lepe_temperature_comparison/pi_multiband_v3/temperature_comparison.pdf",
+      "bytes": 57479,
+      "sha256": "b6dbee797103a0dae49467069f2cc5b1994848af6793dc811cfe6d6920cba1b8"
+    },
+    {
+      "path": "/tmp/lepe_multiband_v3_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2243-2259/lepe_temperature_comparison/pi_multiband_v3/temperature_comparison.png",
+      "bytes": 343130,
+      "sha256": "e6b9b0cf4a7c7ff72ddbc90f735b0758d4cba2bdaeefd775f8046c3394be7174"
+    },
+    {
+      "path": "/tmp/lepe_multiband_v3_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2307-2316/lepe_temperature_comparison/pi_multiband_v3/temperature_comparison.pdf",
+      "bytes": 49697,
+      "sha256": "5585acc368d3af740187c0a7a69e7c46de94531125867e1d706f33c1422a9d72"
+    },
+    {
+      "path": "/tmp/lepe_multiband_v3_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2307-2316/lepe_temperature_comparison/pi_multiband_v3/temperature_comparison.png",
+      "bytes": 318713,
+      "sha256": "d438a70ca8a48aac2e513b4367088106772d063d9428bfd1b4e69cd871bb747e"
+    },
+    {
+      "path": "/tmp/lepe_multiband_v3_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2318-2325/lepe_temperature_comparison/pi_multiband_v3/temperature_comparison.pdf",
+      "bytes": 46943,
+      "sha256": "690cc604b07b6f32333a8d60f9e770a8c68a3dcea336d1c92fb61165d0da4342"
+    },
+    {
+      "path": "/tmp/lepe_multiband_v3_validation/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2318-2325/lepe_temperature_comparison/pi_multiband_v3/temperature_comparison.png",
+      "bytes": 280485,
+      "sha256": "c99af04388a3db273dd871df81531e7919dbd0ee8ed89ca24fe1a438635858e8"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0347-0353/lepe_temperature_comparison_lt1keV.pdf",
+      "bytes": 29310,
+      "sha256": "db4671f563e28c3e361656650f8cf882adbb2204c198cc8321f6042bb0040290"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0347-0353/lepe_temperature_comparison_lt1keV.png",
+      "bytes": 305602,
+      "sha256": "93857c41e63395be7958539fe11212630d57d6207dca3063f71b6cd1cbf7276b"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0558-0610/lepe_temperature_comparison_lt1keV.pdf",
+      "bytes": 30763,
+      "sha256": "14b45e6a8f6e321ab13be89e4a7170295a8d7dbc6b3fdd1bafc6d53e34c5f102"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0558-0610/lepe_temperature_comparison_lt1keV.png",
+      "bytes": 230676,
+      "sha256": "48fb917ca073a42f244cae3872d98b82056f9f37754b6699a918356f2e3b2015"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0641-0648/lepe_temperature_comparison_lt1keV.pdf",
+      "bytes": 29600,
+      "sha256": "596792874ecd80cf7d5fca364f6efa07abd9462d856b9e6d74d00f26888a0960"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0641-0648/lepe_temperature_comparison_lt1keV.png",
+      "bytes": 245810,
+      "sha256": "b2ac7d2e8681c7e36a8104a61d4b9a07304e99a26c1c3b2f6defacbaf7b2da71"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0721-0731/lepe_temperature_comparison_lt1keV.pdf",
+      "bytes": 29302,
+      "sha256": "57a94309f94eccf670cea58a5b0d9402f42351c7d9c220b6e22ff6af19bfb678"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0721-0731/lepe_temperature_comparison_lt1keV.png",
+      "bytes": 204332,
+      "sha256": "115882dc5fceefe7563883ee95721a4eac76670f3d573093b2ee653a546a2078"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0731-0749/lepe_temperature_comparison_lt1keV.pdf",
+      "bytes": 31803,
+      "sha256": "29722698f428579f0a11fd5fbce7bf6c5bc91e37054eb0604c37920dbcf5067a"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0731-0749/lepe_temperature_comparison_lt1keV.png",
+      "bytes": 209856,
+      "sha256": "543fdb8613851b52790ec64526efa37aa1db2f840cfc0eefbd256b86adcc5b88"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2226-2243/lepe_temperature_comparison_lt1keV.pdf",
+      "bytes": 33638,
+      "sha256": "17958539891db5a6d175a31960e481167af0e05b7921115d95a7bc703b8703e0"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2226-2243/lepe_temperature_comparison_lt1keV.png",
+      "bytes": 273245,
+      "sha256": "e7a598d06cbbe63ddaad0ad85f1d5ce843837eaa72eb056fbe190c56bb770512"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2243-2259/lepe_temperature_comparison_lt1keV.pdf",
+      "bytes": 33038,
+      "sha256": "f12ea26c5fb36e535eaeaff6770ae3569df4f37b18dbd412319e5dd16d55e8fb"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2243-2259/lepe_temperature_comparison_lt1keV.png",
+      "bytes": 262861,
+      "sha256": "d8b21721aebf4849dedaf4746f6a59a86f57cc3c9caaf27c0587e7010841d614"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2307-2316/lepe_temperature_comparison_lt1keV.pdf",
+      "bytes": 31339,
+      "sha256": "55cfd20bdc2ac4f1f4f628d6f2d8f63d286abc9e74de6a4256b51ef41f7810f3"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2307-2316/lepe_temperature_comparison_lt1keV.png",
+      "bytes": 275326,
+      "sha256": "04bbe90bf1802b900d2b01108d96e84fd12be7a9f968a69e66818d690f96f431"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2318-2325/lepe_temperature_comparison_lt1keV.pdf",
+      "bytes": 30107,
+      "sha256": "6efe0be806441ffee2bb843539bf18db095028d7b0e98971ad0dc0f5b55ea961"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2318-2325/lepe_temperature_comparison_lt1keV.png",
+      "bytes": 206234,
+      "sha256": "3581fbd592c9117737fb3232c64c56459f34e8a4b5519f64c76503f788d93fc0"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0347-0353/lepe_temperature_comparison_dual_energy.pdf",
+      "bytes": 30129,
+      "sha256": "22cbbc2049ed9ccbb9b60d7914d20d4d0854027df77ea283c34ae4c1e7cbee84"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0347-0353/lepe_temperature_comparison_dual_energy.png",
+      "bytes": 332242,
+      "sha256": "6192a9a8763959226677fea2740ef0c485f24f3a36ab76e746851545904fa5ed"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0558-0610/lepe_temperature_comparison_dual_energy.pdf",
+      "bytes": 32335,
+      "sha256": "2bfbf39809c12dadd9baba76da97da5ad16a081aa571203f1976a248dc7590e6"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0558-0610/lepe_temperature_comparison_dual_energy.png",
+      "bytes": 188291,
+      "sha256": "dd71d91a38f7397ec39a1f2cdce343868e0243fe7597f282f8110f84ec576269"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0641-0648/lepe_temperature_comparison_dual_energy.pdf",
+      "bytes": 30630,
+      "sha256": "13747d63338cd622da5f7a0426e1e15c160ca3172b371dbd5f28d53886e90c46"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0641-0648/lepe_temperature_comparison_dual_energy.png",
+      "bytes": 230157,
+      "sha256": "a456308f4ccb0aa9246e9b2e41a3c3b36c76c5a7e39d94f7b5e419ec1b77030f"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0721-0731/lepe_temperature_comparison_dual_energy.pdf",
+      "bytes": 31182,
+      "sha256": "0df1e8aa1471868be1be66ff6b332dc8a31f4b2df55400db83d860edb2e3c2bf"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0721-0731/lepe_temperature_comparison_dual_energy.png",
+      "bytes": 288164,
+      "sha256": "685b47133f03f83e309ff5339ef12683d9b4792fa9e1f0d2ef9df818ebea41e6"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0731-0749/lepe_temperature_comparison_dual_energy.pdf",
+      "bytes": 34867,
+      "sha256": "de29876dd0e5b0868413f2cde6ae3829dedd13a9fcc802fcc95655be1917b36f"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0731-0749/lepe_temperature_comparison_dual_energy.png",
+      "bytes": 287279,
+      "sha256": "f6ec78fc1759d3e35d73ba42d1d8e690e5fbc22ee05a76450511281c93c3be67"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2226-2243/lepe_temperature_comparison_dual_energy.pdf",
+      "bytes": 38393,
+      "sha256": "c9b3bf3c6355d0d1d8c80caab30660cd552d8de29d3056c35e311e69dc813d56"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2226-2243/lepe_temperature_comparison_dual_energy.png",
+      "bytes": 372021,
+      "sha256": "528f386ac1c05be300ef246327d60b1192291fa1fb81955da37a7c28d4736f78"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2243-2259/lepe_temperature_comparison_dual_energy.pdf",
+      "bytes": 37564,
+      "sha256": "67d3d639909be1fc1c9da0c1782a93d534b90e24255d6957d92fe5453447277d"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2243-2259/lepe_temperature_comparison_dual_energy.png",
+      "bytes": 389170,
+      "sha256": "a6cf02b809ca504537c6d5cbcc61fbfbd24b0b877879b413c0a0801c8a9d7e99"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2307-2316/lepe_temperature_comparison_dual_energy.pdf",
+      "bytes": 34163,
+      "sha256": "f94f0b59b78e7a455f99b9aced4f8b795064dd67b577528fa33bbb0c099d6a78"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2307-2316/lepe_temperature_comparison_dual_energy.png",
+      "bytes": 397365,
+      "sha256": "7d5b0bc12420b3b17cde85f6f3f600bd9dc1172445519c7d831eaba7ff5bdaf8"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2318-2325/lepe_temperature_comparison_dual_energy.pdf",
+      "bytes": 32329,
+      "sha256": "314768dd7e88f01c1255e7d8d7018050a27902256231aeff16c7d08cd9b4cf25"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2318-2325/lepe_temperature_comparison_dual_energy.png",
+      "bytes": 292655,
+      "sha256": "64ad0ffce0220e5762656bcaae2866b40e9bf0ce2dfc1b2796b48d80dbc26a06"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_organized_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0347-0353/lepe_temperature_comparison/lepe_temperature_comparison_dual_energy.pdf",
+      "bytes": 30129,
+      "sha256": "cc8b2b1c6bc303bf29c3afb884e88b37f991727380e5fa3fd803abac9503485d"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_organized_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0347-0353/lepe_temperature_comparison/lepe_temperature_comparison_dual_energy.png",
+      "bytes": 332242,
+      "sha256": "6192a9a8763959226677fea2740ef0c485f24f3a36ab76e746851545904fa5ed"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_organized_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0558-0610/lepe_temperature_comparison/lepe_temperature_comparison_dual_energy.pdf",
+      "bytes": 32335,
+      "sha256": "aa687505902923f3ee8f9bb77570382a34b1cb88f5b4afe6905eab0ebeab0c20"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_organized_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0558-0610/lepe_temperature_comparison/lepe_temperature_comparison_dual_energy.png",
+      "bytes": 188291,
+      "sha256": "dd71d91a38f7397ec39a1f2cdce343868e0243fe7597f282f8110f84ec576269"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_organized_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0641-0648/lepe_temperature_comparison/lepe_temperature_comparison_dual_energy.pdf",
+      "bytes": 30630,
+      "sha256": "5e53f92bf05616986ee0e1a2303c7f10d6b1661a8ff914510a8deb2d8a402f4b"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_organized_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0641-0648/lepe_temperature_comparison/lepe_temperature_comparison_dual_energy.png",
+      "bytes": 230157,
+      "sha256": "a456308f4ccb0aa9246e9b2e41a3c3b36c76c5a7e39d94f7b5e419ec1b77030f"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_organized_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0721-0731/lepe_temperature_comparison/lepe_temperature_comparison_dual_energy.pdf",
+      "bytes": 31182,
+      "sha256": "350761fabeef6027cbd0082d5bf6a8827b69bf6b433b4a4cf51eb5ad24f8ad62"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_organized_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0721-0731/lepe_temperature_comparison/lepe_temperature_comparison_dual_energy.png",
+      "bytes": 288164,
+      "sha256": "685b47133f03f83e309ff5339ef12683d9b4792fa9e1f0d2ef9df818ebea41e6"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_organized_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0731-0749/lepe_temperature_comparison/lepe_temperature_comparison_dual_energy.pdf",
+      "bytes": 34867,
+      "sha256": "8b35efbdc53c7c4f07362c2272263b7abefbc20e2e53e619e15e1f123c1a7dba"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_organized_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0731-0749/lepe_temperature_comparison/lepe_temperature_comparison_dual_energy.png",
+      "bytes": 287279,
+      "sha256": "f6ec78fc1759d3e35d73ba42d1d8e690e5fbc22ee05a76450511281c93c3be67"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_organized_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2226-2243/lepe_temperature_comparison/lepe_temperature_comparison_dual_energy.pdf",
+      "bytes": 38393,
+      "sha256": "f321f786c4c3e461c735c1e4140035115e72ab7d794f296b7d4866b7076577dc"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_organized_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2226-2243/lepe_temperature_comparison/lepe_temperature_comparison_dual_energy.png",
+      "bytes": 372021,
+      "sha256": "528f386ac1c05be300ef246327d60b1192291fa1fb81955da37a7c28d4736f78"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_organized_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2243-2259/lepe_temperature_comparison/lepe_temperature_comparison_dual_energy.pdf",
+      "bytes": 37564,
+      "sha256": "49116f85ac993dddd2771c06ab3dacf7a85e9abfc66900b4f7140714a71b6ac0"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_organized_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2243-2259/lepe_temperature_comparison/lepe_temperature_comparison_dual_energy.png",
+      "bytes": 389170,
+      "sha256": "a6cf02b809ca504537c6d5cbcc61fbfbd24b0b877879b413c0a0801c8a9d7e99"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_organized_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2307-2316/lepe_temperature_comparison/lepe_temperature_comparison_dual_energy.pdf",
+      "bytes": 34163,
+      "sha256": "ef17e7cd1c27986939bda2c58a87e07e0ab9920568f12af3565b3b9a13b3eef3"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_organized_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2307-2316/lepe_temperature_comparison/lepe_temperature_comparison_dual_energy.png",
+      "bytes": 397365,
+      "sha256": "7d5b0bc12420b3b17cde85f6f3f600bd9dc1172445519c7d831eaba7ff5bdaf8"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_organized_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2318-2325/lepe_temperature_comparison/lepe_temperature_comparison_dual_energy.pdf",
+      "bytes": 32329,
+      "sha256": "74328000899312ad66cae84d94aad089c40956953adf3790e58e11820fdd3a48"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_dual_organized_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2318-2325/lepe_temperature_comparison/lepe_temperature_comparison_dual_energy.png",
+      "bytes": 292655,
+      "sha256": "64ad0ffce0220e5762656bcaae2866b40e9bf0ce2dfc1b2796b48d80dbc26a06"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_ge67eV_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0347-0353/lepe_temperature_comparison_ge67eV.pdf",
+      "bytes": 29264,
+      "sha256": "95ea944de561fb2549a5c97c2178911cef5180c5e1e1af2742d4936afaa2333a"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_ge67eV_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0347-0353/lepe_temperature_comparison_ge67eV.png",
+      "bytes": 275765,
+      "sha256": "aeb2a01ecf897b9399696998a5d36ae6dd79935afc142423d16f9ad9df7d9533"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_ge67eV_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0558-0610/lepe_temperature_comparison_ge67eV.pdf",
+      "bytes": 30637,
+      "sha256": "11cfd2460ff916b9a93f6e1d7416cb76b75e115e9dd45e1486ce6af6f12eb77b"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_ge67eV_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0558-0610/lepe_temperature_comparison_ge67eV.png",
+      "bytes": 185820,
+      "sha256": "c028749f6eb7fbe89d2f9175d1f6a3131653f05406e8d40c7d3382a2aff21c15"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_ge67eV_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0641-0648/lepe_temperature_comparison_ge67eV.pdf",
+      "bytes": 29641,
+      "sha256": "4af15c7d9b1fb735b240f3c9081efeaad51a72db43891889eb6b263b1936ff78"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_ge67eV_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0641-0648/lepe_temperature_comparison_ge67eV.png",
+      "bytes": 219895,
+      "sha256": "eebc3b73b8304550c935bfbb469a6225fe576dfeff3d0726ef30503196235c0b"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_ge67eV_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0721-0731/lepe_temperature_comparison_ge67eV.pdf",
+      "bytes": 30374,
+      "sha256": "a2b664924e44d9b05a0e55819f122072ccd13fe182f05979eb5dcfcd4663ae04"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_ge67eV_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0721-0731/lepe_temperature_comparison_ge67eV.png",
+      "bytes": 255868,
+      "sha256": "fef22265875c37d00398c8e76317516d8196733e5ba34d19521ff8c43c333d51"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_ge67eV_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0731-0749/lepe_temperature_comparison_ge67eV.pdf",
+      "bytes": 32333,
+      "sha256": "a897b0a8791279f022012e28ef9022fb20cd2b3b548ac2d84909de1ff4a544e3"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_ge67eV_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/0731-0749/lepe_temperature_comparison_ge67eV.png",
+      "bytes": 245602,
+      "sha256": "5e0c24e0d30d4dcab2ec239e3759c3cc2f3553b8f1f56b18461bed937ed8d3d9"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_ge67eV_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2226-2243/lepe_temperature_comparison_ge67eV.pdf",
+      "bytes": 34259,
+      "sha256": "e66d8ab30090a242b685f34efd696d379f71382f12b38d23d3139f5ab86e27c7"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_ge67eV_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2226-2243/lepe_temperature_comparison_ge67eV.png",
+      "bytes": 311714,
+      "sha256": "8024ed29042ebd23eebfd345706b4e5a7918eecd4a1493d57b253fed4bd325c2"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_ge67eV_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2243-2259/lepe_temperature_comparison_ge67eV.pdf",
+      "bytes": 33500,
+      "sha256": "3fe67c269cf2c723a1e7b0fd09e7aae7311b67ed71723ae5b88d26f73a4b50f8"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_ge67eV_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2243-2259/lepe_temperature_comparison_ge67eV.png",
+      "bytes": 303979,
+      "sha256": "647b9be12e24c09d19e10797e072299676737246413dff4984ab31f88fff398a"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_ge67eV_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2307-2316/lepe_temperature_comparison_ge67eV.pdf",
+      "bytes": 31888,
+      "sha256": "efd58a2a9e84cb24954b0a2c687b8ee4b8ef7fb49feb669bdc4dafeeda805560"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_ge67eV_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2307-2316/lepe_temperature_comparison_ge67eV.png",
+      "bytes": 304537,
+      "sha256": "80eac6c711db3ec5519f0ed98892202dd83fbe869b6e54676154e45a763b5711"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_ge67eV_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2318-2325/lepe_temperature_comparison_ge67eV.pdf",
+      "bytes": 30506,
+      "sha256": "f176e6c3becc7eb7716335d7e14ce5f5d72c1d7761864b276b78b76b8e992a0a"
+    },
+    {
+      "path": "/tmp/lepe_temperature_comparison_ge67eV_20220901/Arase_valid_time_ranges_20220901_000000_to_20221001_000000_b25627655ffe/2022-09-01/2318-2325/lepe_temperature_comparison_ge67eV.png",
+      "bytes": 221433,
+      "sha256": "0fe6e44d8108f1b3372f8bf9e165fc7970b1ec836f04aa05ad253319461174be"
+    },
+    {
+      "path": "/tmp/event_gsm.png",
+      "bytes": 172320,
+      "sha256": "2a6674bcc3cca1386b096f3471835c76ef013846a1743fd7c82ec6cbd245c1a4"
+    },
+    {
+      "path": "/tmp/kappa_ebs_time_series_preview.png",
+      "bytes": 285811,
+      "sha256": "45fe77b413b3375dfd692f332a8c95fb21bb6777122216c21417d1d18ef8a69e"
+    },
+    {
+      "path": "/tmp/spin_metric_all.jpg",
+      "bytes": 1184349,
+      "sha256": "683f5e7462174e4e4ad28b0b75f60f062a49ad4f3c452564562934959b51b5f4"
+    },
+    {
+      "path": "/tmp/spin_metric_all.png",
+      "bytes": 6650892,
+      "sha256": "62dd6b9c556ff28a595a7a5b31608b1dedbbb34b663ff330042745405fb1bc14"
+    },
+    {
+      "path": "/tmp/spin_metric_all_small.jpg",
+      "bytes": 646210,
+      "sha256": "06976bc31e87798e3371b32e89ae9dbdc46aa69bd69e80f4342a5e8c3f4e53cc"
+    },
+    {
+      "path": "/tmp/spin_metric_extremes.jpg",
+      "bytes": 837582,
+      "sha256": "55979f738e2b9ee926010b5fa524ff8b41c029b47d8de70b851b12e2a3e80576"
+    },
+    {
+      "path": "/tmp/spin_metric_extremes.png",
+      "bytes": 3923620,
+      "sha256": "b231bbd12c64a0d9f44a30439130c5f9d6b2a06d7fb7ca8aac60904e847091f6"
+    },
+    {
+      "path": "/tmp/spin_metric_extremes_small.jpg",
+      "bytes": 297943,
+      "sha256": "a553d188d94a85dddcdc6bd4790a668366c8439f086d4e37f4783a0cfbe0e58f"
+    }
+  ],
+  "count": 229,
+  "bytes": 62123277,
+  "additional_evidence": "Standalone orbit, spin and kappa previews verified against Codex session tool creation commands (2026-09-26, 2026-10-01, 2026-10-02).",
+  "preserved_statistics_root": "/mnt/j/statistical_analysis_arase/preanalysis/KAW_observation/lepe_ge67eV_vion_v2/auto/statistics/202001-202212/min_blocks_10",
+  "preservation_verified": true,
+  "completed_utc": "2026-10-28T04:40:42.843477+00:00",
+  "deleted_count": 229,
+  "deleted_bytes": 62123277,
+  "skipped": [],
+  "removed_preview_directories": [
+    "/tmp/arase_x0_kappa_fit_trial_20261028",
+    "/tmp/arase_x0_kappa_preview_20261028",
+    "/tmp/arase_statistics_grid_preview_20261028"
+  ]
+}

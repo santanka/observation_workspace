@@ -1,0 +1,34 @@
+Traceback (most recent call last):
+  File "/home/satanka/Documents/observation_workspace/lepi_moment_batch/worker.py", line 396, in main
+    result = execute(request)
+             ^^^^^^^^^^^^^^^^
+  File "/home/satanka/Documents/observation_workspace/lepi_moment_batch/worker.py", line 293, in execute
+    b, bmeta = magnetic(request['mgf'], lo, hi, targets, config['mgf_cadence'],
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/satanka/Documents/observation_workspace/lepi_moment_batch/worker.py", line 210, in magnetic
+    load_science()
+  File "/home/satanka/Documents/observation_workspace/lepi_moment_batch/worker.py", line 37, in load_science
+    import pilot as module
+  File "/home/satanka/Documents/observation_workspace/lepi_moment_pilot/pilot.py", line 34, in <module>
+    import pyspedas as psp
+  File "/home/satanka/Documents/observation_workspace/.venv_pyspedas/lib/python3.12/site-packages/pyspedas/__init__.py", line 131, in <module>
+    from .cdagui_tools.cdagui import cdagui
+  File "/home/satanka/Documents/observation_workspace/.venv_pyspedas/lib/python3.12/site-packages/pyspedas/cdagui_tools/cdagui.py", line 23, in <module>
+    from pyspedas.cdagui_tools.cdaweb import CDAWeb
+  File "/home/satanka/Documents/observation_workspace/.venv_pyspedas/lib/python3.12/site-packages/pyspedas/cdagui_tools/cdaweb.py", line 13, in <module>
+    from cdasws import CdasWs
+  File "/home/satanka/Documents/observation_workspace/.venv_pyspedas/lib/python3.12/site-packages/cdasws/__init__.py", line 85, in <module>
+    from cdasws.cdasws import *  # pylint: disable=wrong-import-position
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/satanka/Documents/observation_workspace/.venv_pyspedas/lib/python3.12/site-packages/cdasws/cdasws.py", line 95, in <module>
+    import spacepy.datamodel as spdm    # type: ignore
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/satanka/Documents/observation_workspace/.venv_pyspedas/lib/python3.12/site-packages/spacepy/__init__.py", line 415, in <module>
+    _read_config(rcfile)
+  File "/home/satanka/Documents/observation_workspace/.venv_pyspedas/lib/python3.12/site-packages/spacepy/__init__.py", line 346, in _read_config
+    _write_defaults(rcfile, defaults)
+  File "/home/satanka/Documents/observation_workspace/.venv_pyspedas/lib/python3.12/site-packages/spacepy/__init__.py", line 298, in _write_defaults
+    rclines[nextsec:nextsec] = writeme_verb
+            ^^^^^^^
+UnboundLocalError: cannot access local variable 'nextsec' where it is not associated with a value
+{"status": "failed", "failure_class": "calculation_error", "retryable": false, "reason": "cannot access local variable 'nextsec' where it is not associated with a value", "exception_type": "UnboundLocalError", "total_seconds": 11.492033841999728, "max_rss_mib": 225.84765625, "nice": 19, "cpu_affinity": [9]}

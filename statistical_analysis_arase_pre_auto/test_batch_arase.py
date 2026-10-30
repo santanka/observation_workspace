@@ -16,6 +16,38 @@ import att_tolerant
 
 
 class BatchAraseTests(unittest.TestCase):
+    def test_unusable_ion_velocity_excluded_and_valid_zero_velocity_preserved(self):
+        namespace = {}
+        exec(batch.BATCH_PREAMBLE, namespace)
+        guard = namespace['batch_require_finite_vector']
+        times = np.array(['2021-12-19T18:30:00', '2021-12-19T18:31:00'], dtype='datetime64[ns]')
+        da = xr.DataArray(np.zeros((2, 3)), dims=('time', 'v_dim'),
+                          coords={'time': times, 'v_dim': [0, 1, 2]})
+        interval = ['2021-12-19T18:29:00', '2021-12-19T18:32:00']
+        guard(da, 'ion velocity', interval)  # physical zero drift is valid
+        nan = da.copy(data=np.full((2, 3), np.nan))
+        with self.assertRaisesRegex(ValueError, 'Required input unavailable:.*no finite') as error:
+            guard(nan, 'ion velocity', interval)
+        self.assertEqual(batch.classify_range_failure(str(error.exception), 1), ('empty_input_data', False))
+        self.assertIn('empty_input_data', batch.TERMINAL_EXCLUSION_CLASSES)
+        partial = da.copy(data=np.array([[np.nan, 0., 0.], [0., np.nan, 0.]]))
+        with self.assertRaisesRegex(ValueError, 'no finite'):
+            guard(partial, 'ion velocity', interval)
+        one_valid = da.copy(data=np.array([[np.nan, 0., 0.], [1., 2., 3.]]))
+        before = one_valid.copy(deep=True)
+        guard(one_valid, 'ion velocity', interval)
+        xr.testing.assert_identical(one_valid, before)
+
+    def test_ion_velocity_guard_is_injected_after_combination(self):
+        notebook = json.loads(batch.DEFAULT_NOTEBOOK.read_text())
+        source = next(''.join(cell['source']) for cell in notebook['cells']
+                      if ') = combine_ion_moments(ion_moments)' in ''.join(cell.get('source', [])))
+        transformed = batch.transform_notebook_source(source, '2021-12-19T18:29:00',
+                                                     '2021-12-19T18:32:00', Path('/tmp/arase-guard-test'))
+        self.assertEqual(transformed.count("batch_require_finite_vector(v_ion_dsi,"), 1)
+        self.assertLess(transformed.index(') = combine_ion_moments(ion_moments)'),
+                        transformed.index('batch_require_finite_vector(v_ion_dsi,'))
+
     def test_normal_run_skips_excluded_before_prefetch(self):
         _, ranges = batch.load_ranges(batch.DEFAULT_RANGES)
         item = ranges[0]

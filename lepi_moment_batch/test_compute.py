@@ -77,6 +77,8 @@ Path(a.result).write_text(json.dumps({'status':'complete','cpu_affinity':sorted(
             batch.atomic_json(state,data)
             self.assertTrue(batch.resume_valid(state,out,'p','s'))
             self.assertFalse(batch.resume_valid(state,out,'p','changed'))
+            batch.atomic_json(state,{**data,'classification_version':2,'exclusion_basis':'verified_mgf_coverage'})
+            self.assertTrue(batch.resume_valid(state,out,'p','s'))
             batch.atomic_json(state,{**data,'exclusion_basis':'unknown'})
             self.assertFalse(batch.resume_valid(state,out,'p','s'))
             batch.atomic_json(state,{**data,'status':'no_data'})
@@ -91,9 +93,12 @@ a=worker.magnetic_failure_result(r,exc)
 assert a['status']=='excluded' and a['failure_class']=='required_input_missing_remote'
 b=worker.magnetic_failure_result({'mgf':[],'acquisition_evidence':[]},exc)
 assert b['status']=='failed_validation' and b['retryable']
-for name in ('invalid_mgf_schema','invalid_mgf_field'):
-    c=worker.magnetic_failure_result(r,worker.MissingMagneticData('bad field',name))
-    assert c['status']=='failed_validation' and c['failure_class']==name
+c=worker.magnetic_failure_result(r,worker.MissingMagneticData('missing variable','invalid_mgf_schema'))
+assert c['status']=='failed_validation' and c['failure_class']=='invalid_mgf_schema'
+c=worker.magnetic_failure_result(r,worker.MissingMagneticData('unknown policy','unknown_mgf_failure'))
+assert c['status']=='failed_validation'
+c=worker.magnetic_failure_result(r,worker.MissingMagneticData('all ineligible','no_valid_mgf_support'))
+assert c['status']=='excluded' and not c['retryable'] and c['classification_version']==2
 r['mgf']=[{'verified':'CDF'}]
 c=worker.magnetic_failure_result(r,worker.MissingMagneticData('gap','insufficient_mgf_coverage'))
 assert c['status']=='excluded' and c['exclusion_basis']=='verified_mgf_coverage'

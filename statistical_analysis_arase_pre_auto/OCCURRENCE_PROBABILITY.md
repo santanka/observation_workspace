@@ -1,5 +1,12 @@
 # KAW occurrence probability の定義
 
+年統合での実行は[`YEARLY_OCCURRENCE.md`](YEARLY_OCCURRENCE.md)を参照。
+2022年は解析結果のある10か月だけを分母の対象とし、L–|MLAT|も追加する。
+方向は代表MLATの符号からtoward ionosphere / toward magnetic equatorへ分類する。
+KAWイベントの採用条件は参照先の旧図と同じphaseの`status == ok`とする。
+`KAW observation time`は採用イベントrangeの全区間長の合計であり、イベント内で
+個別にKAW判定したサンプル時間の合計ではない。
+
 ## 目的と解析単位
 
 この解析は、`batch_arase.py`が生成したrangeをKAW検出の観測単位とし、対象期間全体の

@@ -1,0 +1,33 @@
+{
+  "scope": "Same 650 checked NPZs; 9169 magnetically eligible records per species",
+  "counts": {
+    "FPDU": {
+      "valid": 9169,
+      "zero_density": 925,
+      "negative_density": 0,
+      "undefined_velocity": 925,
+      "undefined_temperature": 925,
+      "undefined_with_positive_density": 0,
+      "undefined_with_zero_density": 925
+    },
+    "FHEDU": {
+      "valid": 9169,
+      "zero_density": 1383,
+      "negative_density": 0,
+      "undefined_velocity": 1383,
+      "undefined_temperature": 1383,
+      "undefined_with_positive_density": 0,
+      "undefined_with_zero_density": 1383
+    },
+    "FODU": {
+      "valid": 9169,
+      "zero_density": 1554,
+      "negative_density": 0,
+      "undefined_velocity": 1554,
+      "undefined_temperature": 1554,
+      "undefined_with_positive_density": 0,
+      "undefined_with_zero_density": 1554
+    }
+  },
+  "unexpected_examples": []
+}

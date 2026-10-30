@@ -1,0 +1,14 @@
+{
+  "start_utc": "2022-02-08T13:55:00+00:00",
+  "end_utc_exclusive": "2022-12-27T19:40:00+00:00",
+  "profile_hash": "1d86398b65a13a82c55c6dc9beecf99b70099d192d39d13ba13c9b55d6f0d5af",
+  "inventory": {
+    "selected_chunks": 694,
+    "local_input_files": 216,
+    "proven_absent_units": 7,
+    "days": 51,
+    "planned_chunks": 694,
+    "days_with_local_lepi": 51
+  },
+  "output": "/mnt/j/observation_data/Arase_LEPi_moments/native_dsi_1d86398b65a1"
+}

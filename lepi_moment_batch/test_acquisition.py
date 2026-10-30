@@ -299,22 +299,17 @@ class Tests(unittest.TestCase):
         self.assertFalse(list(self.args.input_root.rglob('*.cdf')))
 
     @unittest.skipUnless(HAS_CDF, 'CDF library required')
-    def test_identical_duplicate_is_verified_and_conflict_is_quarantined_once(self):
+    def test_identical_duplicate_and_conflict_are_verified_with_record_policy(self):
         path = self.root/'fixture.cdf'
         fixture(path, seconds=(4, 4))
         _, report = self.a.verify(path, self.u)
         self.assertEqual(report['identical_duplicate_pairs'], 1)
         fixture(path, seconds=(4, 4), conflict=True)
-        body = path.read_bytes()
-        with patch.object(self.a, 'request', side_effect=lambda url, method='GET':
-                          Response(self.index if url == self.index_url else body, url)) as request:
-            result = self.a.ensure('64hz', DATE)
-        self.assertEqual(result['status'], 'failed_validation')
-        self.assertFalse(result['retryable'])
-        self.assertEqual(len(result['attempts']), 1)
-        self.assertEqual(request.call_count, 2)  # index + file; no identical re-downloads
-        self.assertEqual(Path(result['rejected_path']).read_bytes(), body)
-        self.assertFalse(list(self.args.input_root.rglob('*.cdf')))
+        _, report = self.a.verify(path, self.u)
+        self.assertEqual(report['status'], 'verified')
+        self.assertEqual(report['identical_duplicate_pairs'], 0)
+        self.assertEqual(len(report['magnetic_record_quarantine']['conflicting_epoch_tt2000']), 1)
+        self.assertEqual(report['magnetic_record_quarantine']['conflicting_record_pairs'][0]['records'], [0, 1])
 
     @unittest.skipUnless(HAS_CDF, 'CDF library required')
     def test_epoch_reversal_is_policy_failure_without_retry(self):

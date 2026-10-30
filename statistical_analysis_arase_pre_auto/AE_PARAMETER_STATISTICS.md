@@ -3,12 +3,20 @@
 ## 解析単位と対象
 
 `arase_phase_master.csv`の`status == "ok"`の1 rangeを1 sampleとして等重みで扱う。
-対象量は`kappa_E/B/S`と`log10_X0_E/B/S`の6変数とする。phaseはall、north
-traveling、south traveling、standingを混合せず、別々に集計する。
+対象量は`kappa_E/B/S`と`log10_X0_E/B/S`の6変数とする。phaseはall、toward
+ionosphere、toward magnetic equator、standingを混合せず、別々に集計する。
+元のnorth/southを`range_MLAT_deg_mean`の符号で組み替える。北側ではnorthが
+ionosphere向き、南側ではsouthがionosphere向きとなる。MLAT=0または非有限値の
+traveling行は方向別統計から除く。元phaseは`source_phase_mode`に保持する。
+
+作図CLIの`--min-occupied-blocks`は既定値10で、`status == ok`に加えて保存済みの
+`n_occupied_blocks >= N`を要求する。6を指定すれば従来条件で作図できる。年・期間統合では
+`statistics/<期間>/min_blocks_N/ae_statistics/`へ保存する。
 
 AEの代表値には`range_geomag_AE_nT_median`を使う。これはKAW検出時刻だけに依存する
 `fit_geomag_AE_nT_median`ではなく、range全体の地磁気活動度を表す。既定では
-`range_geomag_AE_nT_valid_fraction >= 0.8`かつ有限・非負のrangeを採用する。
+有限・非負のrange中央値を採用し、有効率による選別は行わない。
+100秒移動平均の端点NaNが短いrangeの有効率を下げるため、有効率≥80%の条件は廃止した。
 
 ## 図とbin統計
 
@@ -36,7 +44,7 @@ AE binは既定で0 nTから200 nT刻みとし、上限は入力データを含�
 - `ae_bin_width_nT`: AE bin幅
 - `ae_max_nT`: `None`なら上限を自動設定
 - `min_bin_count`: 描画に必要なrange数
-- `ae_min_valid_fraction`: AE有効率の下限
+- `ae_min_valid_fraction`: 既定`None`で有効率選別なし。数値を明示した場合のみ選別
 - `mlt_sector_hour`: `None`なら全MLT、`(18.0, 6.0)`なら夜側のみ
 - `show_ae_range_spread`: range内AE q16--q84を横error barで表示
 

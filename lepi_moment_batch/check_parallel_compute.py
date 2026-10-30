@@ -19,7 +19,7 @@ def main():
         fixture(lepi,product='lepi')
         fixture(mgf,seconds=(0,4,8,12,16))
         def source(path):
-            return {'source':fingerprint(path),'expanded_path':str(path),
+            return {'nominal_utc':'2022-09-29T05:00:00', 'source':fingerprint(path),'expanded_path':str(path),
                     'time_cache_path':str(path.with_suffix('.epochs.npz'))}
         config={'mgf_cadence':'64hz','max_mgf_gap_seconds':4.,
                 'species':{'FPDU':'proton','FHEDU':'heplus','FODU':'oplus'},'energy_range_ev_per_q':[30.,30000.]}

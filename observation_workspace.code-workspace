@@ -9,5 +9,15 @@
         {
             "path": "../../../../mnt/j/KAW_observation"
         }
-    ]
+    ],
+    "settings": {
+        "files.exclude": {
+            "**/.venv_pyspedas": true,
+            "**/__pycache__": true,
+            "**/.pytest_cache": true,
+            "**/.ipynb_checkpoints": true,
+            "**/.mplconfig": true,
+            "**/.spacepy": true
+        }
+    }
 }
