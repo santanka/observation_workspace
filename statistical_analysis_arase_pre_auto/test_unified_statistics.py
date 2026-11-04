@@ -72,8 +72,8 @@ class UnifiedStatisticsTests(unittest.TestCase):
             args = unified.build_parser().parse_args(["--year", "2022", "--statistics-dir", str(root), "--overwrite"])
             _, _, _, steps = unified.build_steps(args)
             names = [step["name"] for step in steps]
-            self.assertEqual(names, ["prepare_derivatives", "prepare_beta_e", "plot_spatial", "plot_latitude",
-                                     "plot_dependence", "plot_x0_kappa", "fit_x0_kappa", "plot_spectra",
+            self.assertEqual(names, ["prepare_derivatives", "prepare_beta_e", "prepare_vsys_y", "plot_spatial", "plot_latitude",
+                                     "plot_dependence", "plot_histogram", "plot_x0_kappa", "fit_x0_kappa", "plot_spectra",
                                      "plot_occurrence", "plot_event_counts"])
             for step in steps:
                 if step["name"].startswith("prepare"):

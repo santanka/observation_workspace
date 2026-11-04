@@ -57,6 +57,14 @@ PARAMETERS = {
                    "scale": "linear", "width": 10., "unit": "km/s", "source_unit": "m/s", "source_scale": 1e-3,
                    "source_transform": "abs", "minimum": 0.,
                    "definition": "absolute value of saved range median of signed FAC x velocity; not median of instantaneous absolute velocity"},
+    "vsys_y": {"prefix": "range_sys_velocity_fac_y_ms", "label": r"$V_{\mathrm{sys},y}$ (FAC) [km/s]",
+               "scale": "linear", "width": 10., "unit": "km/s", "source_unit": "m/s", "source_scale": 1e-3,
+               "definition": "signed FAC y observed-ion velocity; original 100s smoothing; separate range summary"},
+    "abs_vsys_y": {"prefix": "range_sys_velocity_fac_y_ms", "label": r"$|V_{\mathrm{sys},y}|$ (FAC) [km/s]",
+                   "x_label": r"$|\mathrm{median}_{\mathrm{range}}(V_{\mathrm{sys},y})|$ (FAC) [km/s]",
+                   "scale": "linear", "width": 10., "unit": "km/s", "source_unit": "m/s", "source_scale": 1e-3,
+                   "source_transform": "abs", "minimum": 0.,
+                   "definition": "absolute signed range median of reconstructed FAC Vy; not median(abs(Vy))"},
 }
 DEFAULT_PARAMETERS = ("ne", "dst", "beta_i", "ti_te")
 PLOT_CONFIG = {"figure_size": (17, 10.5), "dpi": 300, "font_size": 14}
@@ -236,6 +244,8 @@ def build_parser():
     parser.add_argument("--dst-bin-width-nt", type=float, default=20.)
     parser.add_argument("--ae-bin-width-nt", type=float, default=200.)
     parser.add_argument("--vsys-x-bin-width-kms", type=float, default=10.)
+    parser.add_argument("--vsys-y-bin-width-kms", type=float, default=10.)
+    parser.add_argument("--vsys-y-summary", type=Path, help="Prepared Vy range_summary.csv")
     parser.add_argument("--beta-e-summary", type=Path, help="Prepared electron-beta range_summary.csv")
     parser.add_argument("--derivative-summary", type=Path, help="Prepared native-index derivative range_summary.csv")
     parser.add_argument("--ddst-bin-width-nt-per-hour", type=float, default=10.)
@@ -255,7 +265,7 @@ def main(argv=None):
                                                   args.ddst_bin_width_nt_per_hour, args.dae_bin_width_nt_per_hour,
                                                   args.symh_bin_width_nt, args.al_bin_width_nt,
                                                   args.dsymh_bin_width_nt_per_hour, args.dal_bin_width_nt_per_hour,
-                                                  args.ae_bin_width_nt, args.vsys_x_bin_width_kms)):
+                                                  args.ae_bin_width_nt, args.vsys_x_bin_width_kms, args.vsys_y_bin_width_kms)):
         raise ValueError("Bin widths must be finite and positive")
     period = resolve_period(args)
     root = args.statistics_dir or batch.DEFAULT_OUTPUT_ROOT / "statistics" / period.key
@@ -269,11 +279,17 @@ def main(argv=None):
         beta_path = None
         derivative_path = None
         derivative_metadata = None
+        velocity_path = None
         if parameter == "beta_e":
             beta_path = args.beta_e_summary or root / "environment_inputs/beta_e/range_summary.csv"
             # Only requested phases must be covered; do not silently drop missing ranges.
             source_frame = load_electron_beta(selected.loc[selected.phase_mode.isin(requested_phases)],
                                              beta_path, provenance["annual_master_sha256"])
+        elif parameter in ("vsys_y", "abs_vsys_y"):
+            from prepare_system_velocity_statistics import METHOD, PREFIX
+            velocity_path = args.vsys_y_summary or root / "environment_inputs/vsys_y/range_summary.csv"
+            source_frame = load_derived_summary(selected.loc[selected.phase_mode.isin(requested_phases)],
+                velocity_path, provenance["annual_master_sha256"], METHOD, (PREFIX,))
         elif parameter in ("d_dst_dt", "d_ae_dt", "d_sym_h_dt", "d_al_dt"):
             from prepare_geomag_derivative_statistics import METHOD, config_key
             derivative_path = args.derivative_summary or root / "environment_inputs/geomag_derivatives" / config_key() / "range_summary.csv"
@@ -284,6 +300,7 @@ def main(argv=None):
         for phase in requested_phases:
             frames[phase], diagnostics[phase] = select_parameter(source_frame, parameter, phase, args.min_valid_fraction)
         widths = {"vsys_x": args.vsys_x_bin_width_kms, "abs_vsys_x": args.vsys_x_bin_width_kms,
+                  "vsys_y": args.vsys_y_bin_width_kms, "abs_vsys_y": args.vsys_y_bin_width_kms,
                   "ae": args.ae_bin_width_nt, "dst": args.dst_bin_width_nt, "d_dst_dt": args.ddst_bin_width_nt_per_hour,
                   "d_ae_dt": args.dae_bin_width_nt_per_hour, "sym_h": args.symh_bin_width_nt,
                   "al": args.al_bin_width_nt, "d_sym_h_dt": args.dsymh_bin_width_nt_per_hour,
@@ -348,6 +365,10 @@ def main(argv=None):
             metadata["derivative_summary_sha256"] = batch.file_sha256(derivative_path)
             metadata["derivative_provenance_sha256"] = batch.file_sha256(derivative_path.with_suffix(".provenance.json"))
             metadata["derivative_configuration"] = derivative_metadata["configuration"]
+        if velocity_path is not None:
+            metadata["vsys_y_summary"] = str(velocity_path)
+            metadata["vsys_y_summary_sha256"] = batch.file_sha256(velocity_path)
+            metadata["vsys_y_provenance_sha256"] = batch.file_sha256(velocity_path.with_suffix(".provenance.json"))
         (directory / "provenance.json").write_text(json.dumps(metadata, indent=2) + "\n")
         print(f"Wrote {len(written)} files: {directory}", flush=True)
     return 0

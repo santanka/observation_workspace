@@ -35,6 +35,7 @@ MPLCONFIGDIR=/tmp/arase_matplotlib MPLBACKEND=Agg \
 | `spatial` | κ・X₀のL–MLAT、L–|MLAT|、L–MLTカラーマップ | `kappa_x0_statistics/` |
 | `latitude` | L bin別のMLAT・|MLAT|散布点と中央値・分布幅 | `kappa_x0_latitude_profiles/` |
 | `dependence` | 環境パラメータ依存性、各6パネル | 各パラメータの`*_statistics/` |
+| `histogram` | log₁₀X₀・κの件数ヒストグラム、各6パネル | `kappa_x0_histograms/` |
 | `x0_kappa` | 横軸log₁₀X₀・縦軸κの散布図、E/B/Sの3パネル | `x0_kappa_relationship/` |
 | `x0_kappa_fit` | 一次・二次回帰、月別交差検証残差、固定qの振幅変換 | `x0_kappa_fits/` |
 | `spectra` | k⊥ρᵢに対する再構成振幅とイベント間の分布幅 | `reconstructed_spectra/` |
@@ -52,10 +53,10 @@ MPLCONFIGDIR=/tmp/arase_matplotlib MPLBACKEND=Agg \
 
 ## 横軸・phaseを限定
 
-`dependence`の`--parameter`は反復指定可能。省略すると全14種類:
+`dependence`の`--parameter`は反復指定可能。省略すると全16種類:
 
 `ae`, `ne`, `dst`, `beta_i`, `ti_te`, `beta_e`, `sym_h`, `al`,
-`d_dst_dt`, `d_ae_dt`, `d_sym_h_dt`, `d_al_dt`, `vsys_x`, `abs_vsys_x`。
+`d_dst_dt`, `d_ae_dt`, `d_sym_h_dt`, `d_al_dt`, `vsys_x`, `abs_vsys_x`, `vsys_y`, `abs_vsys_y`。
 
 `vsys_x`は保存済み`range_perp_sys_speed_ms_median`をm/sからkm/sへ換算して使う。
 本解析のtoroidal出力ではFACの符号付きx成分で、垂直速度の大きさではない。
@@ -76,6 +77,22 @@ MPLCONFIGDIR=/tmp/arase_matplotlib MPLBACKEND=Agg \
 時系列を先に絶対値にした`median(abs(V_sys_x))`とは区別する。
 変換後の値でbin分け・中央値・分布幅・相関を再計算する。
 bin幅は同じ`--vsys-x-bin-width-kms`で設定でき、元の符号付き図は保持する。
+
+Vyは未保存だったため、`prepare_system_velocity_statistics.py`で独立した追加集計を作る。
+手順・キャッシュ・検証については[VY_STATISTICS.md](VY_STATISTICS.md)を参照。
+Vxと同じ絶対値仕様で、未完了rangeの集計から作図まで行う場合:
+
+```bash
+MPLCONFIGDIR=/tmp/arase_matplotlib MPLBACKEND=Agg \
+  .venv_pyspedas/bin/python -u statistical_analysis_arase_pre_auto/run_statistics.py \
+  --start-month 202001 --end-month 202212 --product dependence --parameter abs_vsys_y \
+  --min-occupied-blocks 10 --min-bin-count 5 --vsys-y-bin-width-kms 10 --workers 2 --overwrite
+```
+
+Vyの初回集計では`--plot-only`を付けない。完了済みJSONは再利用し、失敗・未実行分だけを集計する。
+符号付きも同時に作る場合は`--parameter vsys_y`を追加する。
+`--overwrite`は図・作図用CSVだけに作用し、Vy・βₑの成功cacheは強制再計算しない。
+準備済みVyを指定する`--vsys-y-summary`も使用でき、指定時は準備段階を省く。
 
 例：βₑとSYM-Hの依存性、allのみ:
 
@@ -107,6 +124,7 @@ auto/statistics/202001-202212/
     statistics_run.json            # 統一入口の実行コマンド・段階別status
     kappa_x0_statistics/
     kappa_x0_latitude_profiles/
+    kappa_x0_histograms/
     x0_kappa_relationship/
     x0_kappa_fits/
     reconstructed_spectra/
@@ -160,8 +178,29 @@ AEの統計CSVは旧列名も保持する。q16–q84は分布幅であり、信
 
 微分は既定でDst ±1時間、AE/SYM-H/AL ±5分の中心差分、単位nT/h。
 差分幅や各パラメータのbin幅は`--help`にある従来のオプションで変更可能。
-通常はoffline。βₑの不足CDF取得は`--allow-network`、ORBの不足日取得は`--download-missing-orbit`を明示した場合だけ許可する。
+通常はoffline。βₑ・Vyの不足CDF取得は`--allow-network`、ORBの不足日取得は`--download-missing-orbit`を明示した場合だけ許可する。
 地磁気変化率はローカルOMNI CDFのみを読む。
+
+## X₀・κの単純ヒストグラム
+
+```bash
+MPLCONFIGDIR=/tmp/arase_matplotlib MPLBACKEND=Agg \
+  .venv_pyspedas/bin/python -u statistical_analysis_arase_pre_auto/run_statistics.py \
+  --start-month 202001 --end-month 202212 --product histogram --plot-only \
+  --min-occupied-blocks 10 --hist-log-x0-bin-width-dex 0.5 --hist-kappa-bin-width 0.2 --overwrite
+```
+
+上段log₁₀X₀・下段κ、列E/B/Sの6パネル。phaseごとに1図、既定で全4分類を作る。
+横軸は保存済みX₀（k⊥ρᵢ=1の規格化振幅）のlog₁₀値とκ、縦軸はrange数。
+1 rangeを等重みの1標本とし、各変数の有限値を独立に採用する。全MLT、有効率による選別なし。
+正規化や最低bin件数のmaskは行わず、件数1・0のbinも残す。
+各パネルに中央値の黒破線と数値、標本分散s²（ddof=1）を表示する。
+中央値・分散・標準偏差はbin中心ではなく個々の有限なrange値から計算し、CSVにも保存する。
+X₀の統計量は表示座標のlog₁₀X₀について計算するので分散の単位はdex²。κの分散は無次元。
+2標本未満の分散・標準偏差はCSVをNaN、図の分散をn/aとする。
+各パネルのbin境界・横軸・件数軸の範囲を指定phase間で共通にし、minor ticksとmajor/minor grid alpha=0.3を適用する。
+各phaseのPNG/PDF・件数CSV・標本CSVと全体のprovenanceを`min_blocks_N/kappa_x0_histograms/`に保存する。
+bin幅は上記の2オプションで変更可能。`--min-bin-count`はヒストグラムに作用しない。
 
 ## X₀とκ自体の関係
 

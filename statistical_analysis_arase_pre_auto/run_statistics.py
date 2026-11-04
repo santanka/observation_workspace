@@ -17,7 +17,7 @@ from plot_x0_kappa_relationship import relationship_key
 from statistics_period import resolve_period
 
 
-PRODUCTS = ("spatial", "latitude", "dependence", "x0_kappa", "x0_kappa_fit", "spectra", "occurrence", "event_counts")
+PRODUCTS = ("spatial", "latitude", "dependence", "histogram", "x0_kappa", "x0_kappa_fit", "spectra", "occurrence", "event_counts")
 DERIVATIVES = ("d_dst_dt", "d_ae_dt", "d_sym_h_dt", "d_al_dt")
 
 
@@ -27,20 +27,22 @@ def build_parser():
     parser.description = __doc__
     parser.epilog = "Default: all products and parameters. Existing figures are skipped unless --overwrite is supplied."
     parser.add_argument("--product", choices=PRODUCTS, action="append")
-    parser.add_argument("--workers", type=positive_workers, default=2, help="Parallel beta_e range processes (default: 2)")
+    parser.add_argument("--workers", type=positive_workers, default=2, help="Parallel beta_e/Vy range processes (default: 2)")
     parser.add_argument("--spedas-dir", type=Path, default=batch.DEFAULT_SPEDAS_DIR)
     parser.add_argument("--difference-method", choices=("centered", "backward"), default="centered")
     parser.add_argument("--dst-lag-hours", type=float, default=1.)
     parser.add_argument("--ae-lag-minutes", type=float, default=5.)
     parser.add_argument("--symh-lag-minutes", type=float, default=5.)
     parser.add_argument("--al-lag-minutes", type=float, default=5.)
-    parser.add_argument("--allow-network", action="store_true", help="Permit beta_e input loaders to acquire missing CDFs")
+    parser.add_argument("--allow-network", action="store_true", help="Permit beta_e/Vy input loaders to acquire missing CDFs")
     parser.add_argument("--download-missing-orbit", action="store_true")
-    parser.add_argument("--timeout", type=int, default=14400, help="Beta_e timeout seconds per range")
+    parser.add_argument("--timeout", type=int, default=14400, help="Beta_e/Vy timeout seconds per range")
     parser.add_argument("--l-bin", type=float, action="append")
     parser.add_argument("--x0-bin-width-dex", type=float, default=.5,
                         help="X0-kappa relationship bin width in log10(X0)")
     parser.add_argument("--reference-kperp-rhoi", type=float, default=1., help="Reference amplitude for x0_kappa product")
+    parser.add_argument("--hist-log-x0-bin-width-dex", type=float, default=.5)
+    parser.add_argument("--hist-kappa-bin-width", type=float, default=.2)
     parser.add_argument("--pivot-q", type=float, action="append", help="X0-kappa fit diagnostics; defaults 3 and 10")
     parser.add_argument("--bootstrap-months", type=int, default=300, help="X0-kappa OLS month-bootstrap draws")
     parser.add_argument("--kperp-rhoi-min", type=float, default=1.)
@@ -91,6 +93,10 @@ def build_steps(args):
             add("prepare_beta_e", "prepare_electron_beta_statistics_parallel.py", [*common,
                 "--spedas-dir", str(args.spedas_dir), "--workers", str(args.workers),
                 "--timeout", str(args.timeout), *(["--allow-network"] if args.allow_network else [])])
+        if any(p in parameters for p in ("vsys_y", "abs_vsys_y")) and args.vsys_y_summary is None:
+            add("prepare_vsys_y", "prepare_system_velocity_statistics.py", [*common,
+                "--spedas-dir", str(args.spedas_dir), "--workers", str(args.workers),
+                "--timeout", str(args.timeout), *(["--allow-network"] if args.allow_network else [])])
     if not args.prepare_only:
         if "spatial" in products:
             add("plot_spatial", "plot_kappa_x0_statistics.py", [
@@ -114,13 +120,18 @@ def build_steps(args):
             for parameter in parameters:
                 options.extend(["--parameter", parameter])
             for name in ("min_bin_count", "min_valid_fraction", "log_bin_width_dex", "dst_bin_width_nt",
-                         "ae_bin_width_nt", "symh_bin_width_nt", "al_bin_width_nt", "vsys_x_bin_width_kms", "ddst_bin_width_nt_per_hour",
+                         "ae_bin_width_nt", "symh_bin_width_nt", "al_bin_width_nt", "vsys_x_bin_width_kms", "vsys_y_bin_width_kms", "vsys_y_summary", "ddst_bin_width_nt_per_hour",
                          "dae_bin_width_nt_per_hour", "dsymh_bin_width_nt_per_hour", "dal_bin_width_nt_per_hour",
                          "beta_e_summary"):
                 value = getattr(args, name)
                 if value is not None:
                     options.extend(["--" + name.replace("_", "-"), str(value)])
             add("plot_dependence", "plot_environment_parameter_statistics.py", options)
+        if "histogram" in products:
+            add("plot_histogram", "plot_kappa_x0_histograms.py", [*common,
+                "--output-dir", str(output / "kappa_x0_histograms"),
+                "--log-x0-bin-width-dex", str(args.hist_log_x0_bin_width_dex),
+                "--kappa-bin-width", str(args.hist_kappa_bin_width), *phase_options, policy])
         if "x0_kappa" in products:
             add("plot_x0_kappa", "plot_x0_kappa_relationship.py", [*common,
                 "--output-dir", str(output / relationship_key(args.reference_kperp_rhoi)),
@@ -153,6 +164,8 @@ def build_steps(args):
 def validate(args):
     import numpy as np
     relationship_key(args.reference_kperp_rhoi)
+    if not np.isfinite(args.hist_kappa_bin_width) or args.hist_kappa_bin_width <= 0:
+        raise ValueError("Invalid histogram kappa bin width")
     if args.timeout <= 0 or args.min_bin_count < 1 or args.latitude_min_bin_count < 1:
         raise ValueError("timeout and min-bin-count must be positive")
     if args.bootstrap_months < 0 or any(not np.isfinite(q) or q <= 0 or q == 1 for q in args.pivot_q or []):
