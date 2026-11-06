@@ -1,5 +1,9 @@
 # LEP-i GSM観測流速の後処理
 
+既存出力を引き継ぐoffline並列変換と逐次版からの切替えは [PARALLEL.md](PARALLEL.md) を参照。
+
+GSM各成分の符号付き平均・絶対値平均をL–MLATメッシュで描く独立集計は [SPATIAL.md](SPATIAL.md) を参照。
+
 既存DSIモーメントNPZを変更せず、H⁺・He⁺・O⁺のGSM観測流速を別NPZへ保存する。
 DSI→J2000→GSMという[ERG-SCの変換経路](https://ergsc.isee.nagoya-u.ac.jp/assets/howto/ERG_Coordinate_System_202004.pdf)を使う。
 **GSMへ回転した衛星相対流速**であり、衛星速度の加減算は行わない。温度・圧力の変換も行わない。
